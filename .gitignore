@@ -1,0 +1,22 @@
+# Secrets and anything that could carry live brokerage credentials
+.env
+.env.*
+*.token
+*.pem
+credentials.json
+
+# Live account data must never be committed. Mock data only.
+data/portfolio/live_*.json
+data/sessions/*.jsonl
+
+# Traces and eval output are local artifacts
+logs/
+evals/results/*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/

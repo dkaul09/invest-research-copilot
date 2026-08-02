@@ -1,0 +1,55 @@
+{
+  "account_id": "mock-account-001",
+  "as_of": "2026-06-30",
+  "cash": 4250.00,
+  "holdings": [
+    {
+      "ticker": "AAPL",
+      "shares": 40,
+      "cost_basis_per_share": 165.10,
+      "current_price": 227.50,
+      "sector": "Technology"
+    },
+    {
+      "ticker": "MSFT",
+      "shares": 90,
+      "cost_basis_per_share": 310.25,
+      "current_price": 445.80,
+      "sector": "Technology",
+      "note": "Deliberately oversized position for concentration analysis"
+    },
+    {
+      "ticker": "NKE",
+      "shares": 60,
+      "cost_basis_per_share": 98.40,
+      "current_price": 76.20,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "ticker": "JNJ",
+      "shares": 25,
+      "cost_basis_per_share": 155.00,
+      "current_price": 160.75,
+      "sector": "Healthcare"
+    },
+    {
+      "ticker": "XOM",
+      "shares": 35,
+      "cost_basis_per_share": 102.30,
+      "current_price": 118.40,
+      "sector": "Energy"
+    },
+    {
+      "ticker": "PLTR",
+      "shares": 50,
+      "cost_basis_per_share": 22.10,
+      "current_price": 41.60,
+      "sector": "Technology"
+    }
+  ],
+  "watchlist": [
+    {"ticker": "AMD", "sector": "Technology"},
+    {"ticker": "COST", "sector": "Consumer Staples"},
+    {"ticker": "DIS", "sector": "Communication Services"}
+  ]
+}

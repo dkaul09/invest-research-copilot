@@ -1,0 +1,87 @@
+# Golden set of research questions for the equity-research workflow.
+#
+# `expected_tickers` and `expected_metrics` are used by graders.py to check
+# coverage of a *response* against what the question requires. `relevant_chunks`
+# is used by retrieval_eval.py to score BM25 recall/MRR — each entry is a
+# (ticker, section) pair that should appear in the top-k results for the
+# paired query.
+
+- id: q1_portfolio_wide_analysis
+  question: "Analyze my current holdings by quality, leverage, valuation, and concentration."
+  expected_tickers: [AAPL, MSFT, NKE]
+  expected_metrics: [gross_margin, net_debt_to_ebitda, pe_ratio]
+  query_for_retrieval: "margin leverage valuation"
+  relevant_chunks:
+    - [AAPL, "MD&A: Margin Discussion"]
+    - [MSFT, "MD&A: Segment Performance"]
+
+- id: q2_portfolio_risk_summary
+  question: "Summarize the main risks across my portfolio."
+  expected_tickers: [AAPL, MSFT, NKE]
+  expected_metrics: [net_debt_to_ebitda]
+  query_for_retrieval: "risk factors competition regulation"
+  relevant_chunks:
+    - [AAPL, "Risk Factors: Regulatory Scrutiny"]
+    - [MSFT, "Risk Factors: Cybersecurity"]
+
+- id: q3_peer_compare_msft
+  question: "Compare MSFT to peers."
+  expected_tickers: [MSFT]
+  expected_metrics: [operating_margin, ev_to_ebitda]
+  query_for_retrieval: "cloud competition"
+  relevant_chunks:
+    - [MSFT, "Risk Factors: Competition in Cloud Services"]
+
+- id: q4_nke_margin_explanation
+  question: "Explain why Nike's margins changed using filings."
+  expected_tickers: [NKE]
+  expected_metrics: [gross_margin, operating_margin]
+  query_for_retrieval: "gross margin freight logistics markdown"
+  relevant_chunks:
+    - [NKE, "MD&A: Margin Discussion"]
+
+- id: q5_aapl_supply_chain_risk
+  question: "What supply chain risks does Apple disclose?"
+  expected_tickers: [AAPL]
+  expected_metrics: []
+  query_for_retrieval: "supplier manufacturer concentration China"
+  relevant_chunks:
+    - [AAPL, "Risk Factors: Supply Chain Concentration"]
+
+- id: q6_msft_ai_capex
+  question: "How is Microsoft's AI infrastructure spending affecting its financials?"
+  expected_tickers: [MSFT]
+  expected_metrics: [operating_margin]
+  query_for_retrieval: "AI infrastructure capital expenditure datacenter"
+  relevant_chunks:
+    - [MSFT, "Risk Factors: AI Infrastructure Investment"]
+    - [MSFT, "MD&A: Capital Expenditures"]
+
+- id: q7_nke_china_exposure
+  question: "How exposed is Nike to China, and what's the risk?"
+  expected_tickers: [NKE]
+  expected_metrics: []
+  query_for_retrieval: "China consumer demand competition"
+  relevant_chunks:
+    - [NKE, "Risk Factors: China Market Exposure"]
+
+- id: q8_concentration_check
+  question: "Is my portfolio too concentrated in any one position?"
+  expected_tickers: [MSFT]
+  expected_metrics: []
+  query_for_retrieval: "concentration"
+  relevant_chunks: []
+
+- id: q9_leverage_check
+  question: "Which of my holdings carries the most leverage risk?"
+  expected_tickers: [AAPL, MSFT, NKE]
+  expected_metrics: [net_debt_to_ebitda, interest_coverage]
+  query_for_retrieval: "debt leverage interest"
+  relevant_chunks: []
+
+- id: q10_valuation_check
+  question: "How does Nike's valuation compare to Apple and Microsoft?"
+  expected_tickers: [NKE, AAPL, MSFT]
+  expected_metrics: [pe_ratio, ev_to_ebitda]
+  query_for_retrieval: "valuation price to earnings"
+  relevant_chunks: []

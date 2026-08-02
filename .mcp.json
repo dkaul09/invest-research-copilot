@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "invest-research-copilot": {
+      "command": "python",
+      "args": ["-m", "src.mcp_server"],
+      "env": {}
+    }
+  }
+}

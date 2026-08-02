@@ -1,0 +1,46 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/block_trading_tools.py"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/warn_trading_prompt.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/check_output_language.py"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "Bash(*robin_stocks*)",
+      "Bash(*ally_invest*)",
+      "Bash(*td_ameritrade*)",
+      "Bash(*alpaca-trade-api*)",
+      "Bash(*place_order*)",
+      "Bash(*submit_order*)",
+      "Bash(*cancel_order*)"
+    ]
+  }
+}
