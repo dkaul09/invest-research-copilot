@@ -26,7 +26,9 @@ becoming one — see Hard Boundaries below.
 - Robinhood (or any brokerage) integration, if added later, is **read-only
   by construction**: holdings, cost basis, watchlist, and cash only. See
   `src/adapters/robinhood_readonly.py` for the documented constraints any
-  future adapter must satisfy.
+  future adapter must satisfy. This is unrelated to and separate from the
+  live EDGAR adapter below — EDGAR is public filing data, never account or
+  brokerage data.
 
 ## Approved vs. banned vocabulary
 
@@ -43,21 +45,29 @@ time.
 
 ## Tool contract
 
-Six read-only MCP tools, served by `src/mcp_server.py` (see `.mcp.json`),
-all annotated `readOnlyHint: true`:
+Eight read-only MCP tools, served by `src/mcp_server.py` (see `.mcp.json`),
+all annotated `readOnlyHint: true`. Six operate in the closed local sandbox;
+two (`fetch_live_fundamentals`, `search_live_filings`) reach SEC EDGAR's
+public, keyless APIs and are annotated `openWorldHint: true` so it's visible
+they touch the network:
 
 | Tool | Purpose |
 |---|---|
 | `get_portfolio_snapshot` | cash, holdings with weights, watchlist |
 | `get_holding_detail` | one held ticker's position detail |
-| `compute_metrics` | deterministic quality/leverage/valuation ratios |
+| `compute_metrics` | deterministic ratios for a local-corpus ticker |
 | `search_filings` | cited passages from the local SEC filing corpus |
-| `compare_peers` | side-by-side metric table vs named peers |
+| `compare_peers` | side-by-side metric table vs named peers (local corpus) |
 | `get_recent_research` | prior runs from the session ledger, for follow-ups |
+| `fetch_live_fundamentals` | deterministic ratios from a ticker's real SEC XBRL data |
+| `search_live_filings` | cited passages from a ticker's actual latest 10-K, fetched live |
 
-The local filing corpus (`data/filings/`) currently covers **AAPL, MSFT,
-NKE**. If a question involves a ticker outside this set, say so explicitly
-rather than fabricating fundamentals or filing evidence for it.
+The local filing corpus (`data/filings/`) covers **AAPL, MSFT, NKE** with
+hand-curated fundamentals. For any other ticker, use `fetch_live_fundamentals`
+and `search_live_filings` instead of fabricating numbers or evidence —
+they pull real data from SEC EDGAR. Some XBRL fields (e.g. EBITDA, market
+cap/P/E) aren't available this way and will come back `null` rather than
+estimated; say so rather than filling the gap yourself.
 
 ## Workflow
 
@@ -79,8 +89,13 @@ my mind. See the skill file for the full spec and a worked example.
   (gitignored; reserved for a future real adapter).
 - Filings: `data/filings/*.md` — real excerpted 10-K sections with YAML
   front matter (ticker, fiscal year, source URL, fundamentals), chunked and
-  searched via deterministic BM25 (`src/tools/filings_search.py`). No live
-  EDGAR fetch in the MVP.
+  searched via deterministic BM25 (`src/tools/filings_search.py`). Covers
+  AAPL, MSFT, NKE only.
+- Live filings/fundamentals: `src/tools/edgar_client.py`,
+  `edgar_fundamentals.py`, `edgar_filings.py` fetch real data from SEC
+  EDGAR's free, keyless public APIs (ticker→CIK lookup, XBRL company facts,
+  the actual latest 10-K document), disk-cached under `data/edgar_cache/`
+  (gitignored). Use for any ticker outside the local corpus.
 
 ## State & observability
 

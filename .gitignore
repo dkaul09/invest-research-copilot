@@ -13,6 +13,9 @@ data/sessions/*.jsonl
 logs/
 evals/results/*.json
 
+# Cached responses from live SEC EDGAR fetches (network artifacts, not source)
+data/edgar_cache/
+
 # Python
 __pycache__/
 *.py[cod]

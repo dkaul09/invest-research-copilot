@@ -46,10 +46,13 @@ automatically when you ask a research question.
 - "Explain why Nike's margins changed using its 10-K."
 - "What supply chain risks does Apple disclose?"
 
-The local filing corpus (`data/filings/`) currently covers **AAPL, MSFT,
-NKE**. Other holdings (JNJ, XOM, PLTR) and watchlist tickers will be
-reported as outside the corpus rather than analyzed with fabricated
-numbers.
+The local filing corpus (`data/filings/`) covers **AAPL, MSFT, NKE** with
+hand-curated fundamentals. Any other ticker (JNJ, XOM, PLTR, or a watchlist
+name) is analyzed live instead: `fetch_live_fundamentals` pulls real numbers
+from SEC EDGAR's XBRL API, and `search_live_filings` fetches and searches
+that company's actual latest 10-K. Some fields (EBITDA, market cap, and
+anything derived from them) aren't available this way and come back `null`
+rather than estimated.
 
 ## Eval baseline
 
@@ -82,9 +85,10 @@ data/portfolio/mock_account.json          mock holdings, cash, watchlist
 data/filings/*.md             SEC filing excerpts (front matter + fundamentals)
 src/adapters/                 PortfolioAdapter contract + future Robinhood stub
 src/tools/                    metrics engine, filings search, peer compare, mock portfolio
+src/tools/edgar_*.py          live SEC EDGAR adapter: CIK lookup, XBRL fundamentals, live filing search
 src/state/                    session ledger + metrics cache
 src/obs/trace.py              per-tool-call JSONL tracing
-src/mcp_server.py             the six read-only MCP tools
+src/mcp_server.py             the eight read-only MCP tools
 evals/                        golden set, rubric graders, retrieval eval, runner
 tests/                        safety, workflow, and grader tests
 ```
@@ -118,15 +122,37 @@ never needs a model at all. This project draws the line deliberately:
   (never blocks) so legitimate research questions about "selling" a
   division still work.
 
+## Live SEC EDGAR adapter
+
+`fetch_live_fundamentals` and `search_live_filings` reach SEC EDGAR's free,
+keyless public APIs — no API key or auth, just a descriptive `User-Agent`
+header per SEC's usage policy. For any ticker:
+
+1. **Ticker → CIK** via `https://www.sec.gov/files/company_tickers.json`.
+2. **Fundamentals** via the XBRL company-facts API
+   (`data.sec.gov/api/xbrl/companyfacts/CIK##########.json`) — every number
+   is a real value SEC's own XBRL data reports for a specific US-GAAP tag
+   on the latest annual filing. Missing tags come back `null`, never
+   estimated. EBITDA and market cap aren't filing facts, so those (and
+   anything derived from them, like EV/EBITDA) are `null` for live tickers.
+3. **Filing text** via the company's actual latest 10-K document
+   (fetched from `sec.gov/Archives/edgar/...`), stripped of HTML and
+   chunked into overlapping ~200-word windows, then ranked with the same
+   deterministic BM25 algorithm as the local corpus.
+
+Everything is disk-cached to `data/edgar_cache/` (gitignored) so repeat
+questions about the same ticker don't re-hit the network.
+
 ## Future work (explicitly out of scope for the MVP)
 
 - **Live Robinhood adapter** — `src/adapters/robinhood_readonly.py` documents
   the constraints (read-only scope, no execution-capable methods) a real
-  adapter must satisfy. Not implemented; raises `NotImplementedError`.
-- **Live EDGAR fetch** — the retrieval layer works against a small local
-  corpus. A future adapter could fetch and cache real filings from SEC
-  EDGAR's full-text search API, but that adds network dependency and test
-  complexity this MVP intentionally avoids.
+  adapter must satisfy. Not implemented; raises `NotImplementedError`. This
+  is unrelated to the EDGAR adapter above — brokerage/account access is a
+  separate, still-future integration.
+- **EBITDA / market cap for live tickers** — would require picking a D&A
+  tag (inconsistently reported across filers) or a live market-data source;
+  deliberately left `null` rather than estimated.
 - **LLM-judge eval stage** — the current eval is entirely programmatic. A
   richer eval could add an LLM grader for note *quality* (not just
   structure/traceability), verified against the programmatic checks rather

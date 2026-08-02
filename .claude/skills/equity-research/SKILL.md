@@ -36,19 +36,24 @@ in this workflow.
    get weights, cost basis, and unrealized P/L. This is read-only context,
    not something to editorialize about — just numbers to carry forward.
 
-3. **Compute metrics.** For each ticker under review, call
-   `compute_metrics`. This returns quality (margins), leverage (net
-   debt/EBITDA, interest coverage, current ratio), valuation (P/E,
-   EV/EBITDA), and growth ratios, plus the exact inputs used. For portfolio
+3. **Compute metrics.** For each ticker under review, call `compute_metrics`
+   if it's in the local corpus (AAPL, MSFT, NKE), or `fetch_live_fundamentals`
+   for any other ticker — the latter pulls real numbers from SEC XBRL data.
+   This returns quality (margins), leverage (net debt/EBITDA, interest
+   coverage, current ratio), valuation (P/E, EV/EBITDA), and growth ratios,
+   plus the exact inputs used. Some fields from `fetch_live_fundamentals`
+   (EBITDA, market cap, and anything derived from them) will be `null` —
+   state that plainly rather than filling the gap. For portfolio
    concentration, use the `weights`/`hhi`/`top_position_weight` fields
    already present in `get_portfolio_snapshot`.
 
 4. **Retrieve filing evidence.** For each notable metric or risk you plan to
-   discuss (e.g. "why did gross margin expand"), call `search_filings` with
-   a query aimed at that specific question, scoped to the relevant `ticker`
-   when possible. Use the returned `section` and `source_url` as the
-   citation. If no relevant chunk comes back, say so explicitly — do not
-   fill the gap with your own explanation.
+   discuss (e.g. "why did gross margin expand"), call `search_filings`
+   (local corpus tickers) or `search_live_filings` (any other ticker) with a
+   query aimed at that specific question. Use the returned `section` (local)
+   or filing `url` + `filing_date` (live) as the citation. If no relevant
+   chunk comes back, say so explicitly — do not fill the gap with your own
+   explanation.
 
 5. **Write the research note**, in this fixed format:
    - **Snapshot** — holdings/weights/cost-basis context relevant to the question
@@ -72,10 +77,12 @@ in this workflow.
 |---|---|
 | `get_portfolio_snapshot` | whole-account view, concentration, weights |
 | `get_holding_detail` | one held ticker's position detail |
-| `compute_metrics` | deterministic ratios for one ticker |
-| `search_filings` | cited passages explaining a metric or risk |
-| `compare_peers` | side-by-side metric table vs named peers |
+| `compute_metrics` | deterministic ratios, local-corpus ticker (AAPL/MSFT/NKE) |
+| `search_filings` | cited passages, local corpus ticker |
+| `compare_peers` | side-by-side metric table vs named peers (local corpus) |
 | `get_recent_research` | prior runs, for follow-up questions |
+| `fetch_live_fundamentals` | deterministic ratios from real SEC XBRL data, any other ticker |
+| `search_live_filings` | cited passages from a ticker's actual latest 10-K, any other ticker |
 
 ## Example
 
