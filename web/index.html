@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Investment Research Copilot</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h1>Research Copilot</h1>
+      <p class="tag">Read-only &middot; never places trades</p>
+
+      <h2>Portfolio</h2>
+      <div id="portfolio" class="portfolio">Loading…</div>
+
+      <h2>Try asking</h2>
+      <ul class="prompts">
+        <li data-prompt="Analyze my current holdings by quality, leverage, valuation, and concentration.">Analyze my holdings</li>
+        <li data-prompt="Summarize the main risks across my portfolio.">Summarize portfolio risks</li>
+        <li data-prompt="Compare MSFT to peers.">Compare MSFT to peers</li>
+        <li data-prompt="Explain why Nike's margins changed using its 10-K.">Explain NKE's margins</li>
+        <li data-prompt="What litigation risk does JNJ disclose?">JNJ litigation risk (live EDGAR)</li>
+      </ul>
+    </aside>
+
+    <main class="main">
+      <div id="log" class="log">
+        <div class="msg system">
+          Ask a research question about your holdings or watchlist. Every answer is a research
+          note — metrics, citations, risks, and open questions. This tool never recommends buying
+          or selling anything.
+        </div>
+      </div>
+
+      <form id="ask-form" class="ask-form">
+        <textarea id="question" placeholder="Ask a research question…" rows="2"></textarea>
+        <button type="submit" id="send-btn">Ask</button>
+      </form>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

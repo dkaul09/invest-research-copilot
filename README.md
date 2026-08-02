@@ -29,14 +29,40 @@ The assistant:
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env       # then fill in ANTHROPIC_API_KEY (and TELEGRAM_BOT_TOKEN if using the bot)
 pytest -q                 # unit + safety tests
 python -m evals.run        # eval scorecard
-python -m src.mcp_server   # start the MCP server standalone (Ctrl+C to stop)
 ```
 
-Then open this folder in Claude Code — `.mcp.json` registers the tool
-server and `.claude/skills/equity-research/SKILL.md` drives the workflow
-automatically when you ask a research question.
+Three ways to use it, all built on the same tools and the same
+CLAUDE.md/skill rules — nothing is duplicated per interface:
+
+**1. Claude Code (original interface)**
+```bash
+python -m src.mcp_server   # or just open the repo in Claude Code — .mcp.json registers this automatically
+```
+`.claude/skills/equity-research/SKILL.md` drives the workflow automatically
+when you ask a research question inside Claude Code.
+
+**2. Web frontend**
+```bash
+uvicorn backend.app:app --reload
+```
+Open `http://localhost:8000`. A FastAPI backend (`backend/app.py`) drives
+the same tools and the same system prompt (CLAUDE.md + the skill) directly
+against the Anthropic API — no Claude Code required. Requires
+`ANTHROPIC_API_KEY` in `.env`.
+
+**3. Telegram bot (backup interface)**
+```bash
+python telegram_bot.py
+```
+Talks to the exact same `run_research()` function as the web backend — one
+core, two interfaces. Create a bot with
+[@BotFather](https://t.me/BotFather), put the token in `.env` as
+`TELEGRAM_BOT_TOKEN`, and optionally set `TELEGRAM_ALLOWED_CHAT_ID` to your
+own chat id (the bot prints it back to you if you message it without that
+set) — this bot has no login system, so that's its only access control.
 
 ## Demo prompts
 
@@ -88,7 +114,12 @@ src/tools/                    metrics engine, filings search, peer compare, mock
 src/tools/edgar_*.py          live SEC EDGAR adapter: CIK lookup, XBRL fundamentals, live filing search
 src/state/                    session ledger + metrics cache
 src/obs/trace.py              per-tool-call JSONL tracing
-src/mcp_server.py             the eight read-only MCP tools
+src/safety.py                 shared banned-language check (hook, evals, and backend all use this one copy)
+src/tool_router.py            the eight tool implementations, shared by mcp_server.py and backend/app.py
+src/mcp_server.py             MCP surface for Claude Code (wraps tool_router)
+backend/app.py                FastAPI backend: Anthropic agent loop for the web + Telegram frontends
+web/                          plain HTML/CSS/JS chat frontend, served by backend/app.py
+telegram_bot.py               Telegram bot, backup interface to the same backend
 evals/                        golden set, rubric graders, retrieval eval, runner
 tests/                        safety, workflow, and grader tests
 ```
@@ -115,12 +146,18 @@ never needs a model at all. This project draws the line deliberately:
   BM25; every result carries `(ticker, section, source_url)` so a claim in a
   note can always be traced to a specific filing passage.
 - **Guardrail logic** — safety is structural, not just prompted. Tools are
-  read-only by construction (no write method exists to misuse). A
-  `PreToolUse` hook hard-denies any tool call shaped like order execution. A
-  `Stop` hook scans the final response for banned recommendation language
-  and blocks the turn until it's rewritten. A `UserPromptSubmit` hook warns
-  (never blocks) so legitimate research questions about "selling" a
-  division still work.
+  read-only by construction (no write method exists to misuse) — true for
+  every interface, since Claude Code, the web backend, and the Telegram bot
+  all call the same eight functions in `src/tool_router.py`. Inside Claude
+  Code, a `PreToolUse` hook hard-denies any tool call shaped like order
+  execution, a `Stop` hook scans the final response for banned
+  recommendation language and blocks the turn until it's rewritten, and a
+  `UserPromptSubmit` hook warns (never blocks) so legitimate research
+  questions about "selling" a division still work. Outside Claude Code
+  (web/Telegram), `backend/app.py` runs the same banned-language check
+  (`src/safety.py` — one shared module, not a re-implementation) against
+  every final response before it reaches the user, giving the model one
+  chance to rewrite before the response is withheld entirely.
 
 ## Live SEC EDGAR adapter
 

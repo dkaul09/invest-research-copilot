@@ -18,30 +18,11 @@ exit code 0 to make Claude Code continue the turn instead of stopping.
 """
 
 import json
-import re
 import sys
+from pathlib import Path
 
-BANNED_PATTERNS = [
-    r"\byou should buy\b",
-    r"\byou should sell\b",
-    r"\bsell immediately\b",
-    r"\bsell now\b",
-    r"\bplace this trade\b",
-    r"\bstrong buy\b",
-    r"\bi recommend buying\b",
-    r"\bi recommend selling\b",
-    r"\bbuy now\b",
-    r"\bthis is a buy\b",
-]
-BANNED_RE = re.compile("|".join(BANNED_PATTERNS), re.IGNORECASE)
-
-APPROVED_VOCAB_REMINDER = (
-    "Blocked: the response contains recommendation language, which this read-only "
-    "research copilot must never produce. Rewrite the response using research "
-    "framing instead — words like 'research note', 'risks', 'open questions', "
-    "'watchlist candidate', and 'needs more evidence' — and remove any phrasing "
-    "that tells the user to buy, sell, or place a trade."
-)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from src.safety import APPROVED_VOCAB_REMINDER, contains_banned_language  # noqa: E402
 
 
 def _last_assistant_text(transcript_path: str) -> str:
@@ -65,10 +46,6 @@ def _last_assistant_text(transcript_path: str) -> str:
                 elif isinstance(content, str):
                     text = content
     return text
-
-
-def contains_banned_language(text: str) -> re.Match | None:
-    return BANNED_RE.search(text)
 
 
 def main() -> None:
