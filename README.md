@@ -1,13 +1,16 @@
 # Investment Research Copilot (MVP)
 
-A personal, **read-only** portfolio research assistant built as a Claude Code
-project. It analyzes your holdings and watchlist using deterministic
-financial metrics and filing-backed evidence — it does not place trades, and
-it cannot be made to, by construction.
+A personal portfolio research assistant built as a Claude Code project.
+Account access is **read-only** by construction — it analyzes your holdings
+and watchlist using deterministic financial metrics and filing-backed
+evidence, and it may state an objective investment view or rating grounded
+in that analysis. What it cannot do, structurally, is place a trade: there
+is no execution-capable tool anywhere in the codebase, so it can have an
+opinion but never act on one.
 
 This is a learning tool, not a trading system. Every answer is a research
-note: metrics, citations, risks, and open questions — never a "buy this" /
-"sell this" recommendation.
+note: metrics, citations, risks, open questions, and a stated view — never
+a claim that a trade was actually placed or executed.
 
 ## What it does
 
@@ -145,16 +148,18 @@ never needs a model at all. This project draws the line deliberately:
 - **Retrieval** — `data/filings/*.md` is chunked by section and ranked with
   BM25; every result carries `(ticker, section, source_url)` so a claim in a
   note can always be traced to a specific filing passage.
-- **Guardrail logic** — safety is structural, not just prompted. Tools are
-  read-only by construction (no write method exists to misuse) — true for
-  every interface, since Claude Code, the web backend, and the Telegram bot
-  all call the same eight functions in `src/tool_router.py`. Inside Claude
-  Code, a `PreToolUse` hook hard-denies any tool call shaped like order
-  execution, a `Stop` hook scans the final response for banned
-  recommendation language and blocks the turn until it's rewritten, and a
-  `UserPromptSubmit` hook warns (never blocks) so legitimate research
-  questions about "selling" a division still work. Outside Claude Code
-  (web/Telegram), `backend/app.py` runs the same banned-language check
+- **Guardrail logic** — safety is structural, not just prompted, and it's
+  scoped to what actually needs enforcing: this tool may state an opinion
+  (bullish/neutral/bearish, buy/hold/sell), but it can never *act* on one.
+  Tools are read-only by construction (no write method exists to misuse) —
+  true for every interface, since Claude Code, the web backend, and the
+  Telegram bot all call the same eight functions in `src/tool_router.py`.
+  Inside Claude Code, a `PreToolUse` hook hard-denies any tool call shaped
+  like order execution, a `Stop` hook blocks the turn if the final response
+  claims a trade was actually placed/executed/filled (a fabrication, since
+  no tool can do that), and a `UserPromptSubmit` hook warns (never blocks)
+  so "should I buy X" gets an actual view, not a canned refusal. Outside
+  Claude Code (web/Telegram), `backend/app.py` runs the same check
   (`src/safety.py` — one shared module, not a re-implementation) against
   every final response before it reaches the user, giving the model one
   chance to rewrite before the response is withheld entirely.

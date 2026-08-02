@@ -8,6 +8,7 @@ credentials.json
 # Live account data must never be committed. Mock data only.
 data/portfolio/live_*.json
 data/sessions/*.jsonl
+data/sessions/*.json
 
 # Traces and eval output are local artifacts
 logs/

@@ -125,7 +125,12 @@ def _to_text(result: Any) -> str:
 
 
 def _enforce_safety(client: Anthropic, messages: list[dict[str, Any]], response: Any, final_text: str) -> tuple[str, bool]:
-    """Check final_text against the banned-language list; give the model one chance to rewrite."""
+    """Check final_text for a fabricated trade-execution claim; give the model one chance to rewrite.
+
+    Stating a view or rating (bullish/neutral/bearish, buy/hold/sell) is not
+    checked here and is allowed — only a claim that a trade was actually
+    placed, executed, or filled, which is always false in this project.
+    """
     if not contains_banned_language(final_text):
         return final_text, False
 
@@ -134,10 +139,10 @@ def _enforce_safety(client: Anthropic, messages: list[dict[str, Any]], response:
         {
             "role": "user",
             "content": (
-                "Your last response used recommendation language, which this read-only research "
-                "copilot must never produce. Rewrite it using research framing only — 'research "
-                "note', 'risks', 'open questions', 'watchlist candidate', 'needs more evidence' — "
-                "with no phrasing that tells the user to buy, sell, or place a trade."
+                "Your last response claimed a trade was actually placed, executed, or filled. "
+                "This tool has no ability to do that — no tool anywhere in this project can place, "
+                "modify, or cancel a trade. Rewrite it to state your view/rating as an opinion "
+                "grounded in the metrics and citations, without claiming any action was taken."
             ),
         }
     )
@@ -148,8 +153,8 @@ def _enforce_safety(client: Anthropic, messages: list[dict[str, Any]], response:
 
     if contains_banned_language(retry_text):
         return (
-            "This response was blocked twice for recommendation language and has been withheld. "
-            "Please rephrase your question.",
+            "This response was blocked twice for claiming a trade was actually executed, and has "
+            "been withheld. Please rephrase your question.",
             True,
         )
     return retry_text, False

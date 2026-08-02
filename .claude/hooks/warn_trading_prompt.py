@@ -2,15 +2,16 @@
 """UserPromptSubmit hook: warn (never block) on trade-adjacent language.
 
 Unlike block_trading_tools.py, this hook never denies anything — a question
-like "why did Nike sell its Converse... wait, that's a different company" or
-"should the assistant flag if a company plans to sell a division" is a
-legitimate research question, not a trade instruction. Blocking user prompts
-on keyword match would make the tool unusable for real research questions.
+like "should I buy AAPL here" is a legitimate request for the assistant's
+view, not a trade instruction, since this tool has no ability to execute
+one regardless of how it answers. Blocking user prompts on keyword match
+would make the tool unusable for exactly the questions it's meant to answer.
 
-Instead, on a keyword hit this hook injects additional context reminding the
-assistant that its output must stay in research framing regardless of how
-the question was phrased. The Stop hook (check_output_language.py) is the
-actual enforcement point for output language.
+Instead, on a keyword hit this hook injects a reminder that the assistant
+may give its view, grounded in the metrics/citations it gathers, but must
+never claim a trade was actually placed or executed — because no tool in
+this project can do that. The Stop hook (check_output_language.py) is the
+actual enforcement point for that specific fabrication.
 """
 
 import json
@@ -32,11 +33,12 @@ def main() -> None:
             "hookSpecificOutput": {
                 "hookEventName": "UserPromptSubmit",
                 "additionalContext": (
-                    "Reminder: this is a read-only research copilot. Answer with research "
-                    "framing only — research note, risks, open questions, watchlist "
-                    "candidate, needs more evidence. Do not use recommendation language "
-                    "like 'you should buy', 'sell immediately', or 'place this trade', and "
-                    "do not call any tool that would place, modify, or cancel a trade."
+                    "Reminder: you may state a view or rating (bullish/neutral/bearish, "
+                    "buy/hold/sell) grounded in the metrics and citations gathered this turn "
+                    "— that's allowed. What you must never do is claim a trade was actually "
+                    "placed, executed, or filled ('I've placed this trade', 'your order was "
+                    "filled'), and never call any tool that would place, modify, or cancel a "
+                    "trade — no such tool exists in this project."
                 ),
             }
         }

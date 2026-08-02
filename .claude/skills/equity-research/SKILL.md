@@ -1,28 +1,32 @@
 ---
 name: equity-research
-description: Use when the user asks to analyze their portfolio holdings, summarize portfolio risks, compare a holding to peers, or explain a company's financial changes using filings. Produces a cited research note — never a buy/sell recommendation.
+description: Use when the user asks to analyze their portfolio holdings, summarize portfolio risks, compare a holding to peers, explain a company's financial changes using filings, or wants an investment view/rating. Produces a cited research note with a stated, grounded view — never a claim that a trade was actually placed.
 ---
 
 # Equity Research Workflow
 
 This is the one workflow this project supports. It always follows the same
-six steps, in order, for every research question. Do not skip steps, and do
-not state a number or a qualitative claim that didn't come from a tool call
-in this workflow.
+seven steps, in order, for every research question. Do not skip steps, and
+do not state a number or a qualitative claim that didn't come from a tool
+call in this workflow.
 
 ## Hard rules
 
-- Never place, modify, or cancel a trade. There is no tool in this project
-  that can do this — if you ever find yourself looking for one, stop, because
-  it means you've misunderstood the request.
-- Never use recommendation language: no "you should buy/sell", "place this
-  trade", "strong buy", "sell immediately". Use: *research note*, *risks*,
-  *open questions*, *watchlist candidate*, *needs more evidence*.
+- Never place, modify, or cancel a trade, and never claim to have done so.
+  There is no tool in this project that can do this — if you ever find
+  yourself looking for one, stop, because it means you've misunderstood the
+  request. Stating a view (bullish/neutral/bearish, buy/hold/sell) is fine;
+  claiming execution ("I've placed this trade," "your order was filled") is
+  a fabrication and is always wrong, regardless of what the user asks.
+- An investment view is allowed and expected when asked for, but it must be
+  traceable to the metrics and citations gathered *this turn* — not a
+  generic opinion. State the view, then the specific evidence behind it.
 - Never state a number that didn't come out of `compute_metrics` or
   `compare_peers`. If you want to say "margins improved," you must have
   called `compute_metrics` and be quoting its `ratios` output.
-- Never state a qualitative claim about *why* something happened without a
-  citation from `search_filings` (ticker + section + source_url).
+- Never state a qualitative claim about *why* something happened, or the
+  basis for a view, without a citation from `search_filings` (ticker +
+  section + source_url).
 
 ## Steps
 
@@ -62,14 +66,16 @@ in this workflow.
    - **Risks** — bullet list, each grounded in either a metric or a citation
    - **Open questions** — what would need more data or filings to resolve
    - **What would change my mind** — the specific evidence that would shift the assessment
+   - **View** — a stated rating (bullish/neutral/bearish, or buy/hold/sell) per ticker discussed, with a one- or two-sentence rationale that points back to specific rows in the metrics table or specific citations above. If the evidence is too thin for a confident view (e.g. `fetch_live_fundamentals` returned mostly `null`), say that plainly instead of forcing a rating.
 
 6. **Self-critique before finishing.** Re-read the note and check: (a) every
    number appears in a `compute_metrics`/`compare_peers` result you actually
-   received this turn, (b) every qualitative claim has a citation, (c) no
-   banned recommendation language appears anywhere. Fix anything that fails
-   before presenting the note. This is a check you perform yourself — it is
-   also independently enforced by the Stop hook, but don't rely on the hook
-   as your only check.
+   received this turn, (b) every qualitative claim and every stated view has
+   a citation or metric it traces back to, (c) nothing claims a trade was
+   actually placed, executed, or filled. Fix anything that fails before
+   presenting the note. This is a check you perform yourself — it is also
+   independently enforced by the Stop hook, but don't rely on the hook as
+   your only check.
 
 ## Tool reference
 

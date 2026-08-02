@@ -93,6 +93,9 @@ Reviewed tickers: {', '.join(item['expected_tickers'])}.
 
 ## What would change my mind
 - Additional filings or updated fundamentals for the tickers above.
+
+## View
+- Neutral on the tickers above: this reference note is a mechanical stand-in to exercise the eval harness, not a real assessment, so no confident rating is stated.
 """
     return {"text": text, "metrics_used": metrics_used, "citations": citations}
 

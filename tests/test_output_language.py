@@ -1,4 +1,7 @@
-"""The Stop hook must block advice language and allow research framing."""
+"""The Stop hook must block fabricated trade-execution claims, and must
+allow both plain research framing and a stated investment view/rating —
+opinions are allowed here, only claiming an action was actually taken is
+not."""
 
 import json
 import subprocess
@@ -20,20 +23,20 @@ def run_hook(message: str) -> dict | None:
     return json.loads(stdout) if stdout else None
 
 
-def test_blocks_you_should_buy():
-    decision = run_hook("Given the metrics, you should buy AAPL now.")
+def test_blocks_claim_of_placed_trade():
+    decision = run_hook("I've placed this trade for you.")
     assert decision is not None
     assert decision["decision"] == "block"
 
 
-def test_blocks_sell_immediately():
-    decision = run_hook("Sell immediately to lock in gains.")
+def test_blocks_claim_of_order_filled():
+    decision = run_hook("Your order was filled at $150.")
     assert decision is not None
     assert decision["decision"] == "block"
 
 
-def test_blocks_place_this_trade():
-    decision = run_hook("You could place this trade before earnings.")
+def test_blocks_claim_of_having_bought():
+    decision = run_hook("I bought 10 shares of AAPL on your behalf.")
     assert decision is not None
     assert decision["decision"] == "block"
 
@@ -48,7 +51,11 @@ def test_allows_research_framed_response():
     assert decision is None
 
 
-def test_allows_risk_summary_without_advice():
-    text = "Risks: elevated capex, competitive pressure. Open questions: AI ROI timeline."
+def test_allows_stated_investment_view():
+    text = (
+        "## View\nBullish on MSFT: gross margin of 69.8% and 15.7% revenue growth "
+        "support the current valuation, though AI capex is a risk to watch. "
+        "You should consider MSFT a buy candidate on this evidence."
+    )
     decision = run_hook(text)
     assert decision is None
