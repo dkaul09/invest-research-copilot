@@ -98,15 +98,31 @@ def get_cik_for_ticker(ticker: str) -> str | None:
 
 
 def get_submissions(cik: str) -> dict[str, Any]:
-    return fetch_json(
-        f"https://data.sec.gov/submissions/CIK{cik}.json", cache_key=f"submissions_{cik}"
-    )
+    try:
+        return fetch_json(
+            f"https://data.sec.gov/submissions/CIK{cik}.json", cache_key=f"submissions_{cik}"
+        )
+    except (urllib.error.URLError, urllib.error.HTTPError) as exc:
+        raise EdgarLookupError(
+            f"SEC EDGAR has no submissions on file for CIK {cik} (HTTP {getattr(exc, 'code', '?')}). "
+            "This is often an ETF, index, or fund rather than an operating company — those don't "
+            "file 10-Ks or XBRL company facts the way individual stocks do."
+        ) from exc
 
 
 def get_company_facts(cik: str) -> dict[str, Any]:
-    return fetch_json(
-        f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json", cache_key=f"facts_{cik}"
-    )
+    try:
+        return fetch_json(
+            f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json", cache_key=f"facts_{cik}"
+        )
+    except (urllib.error.URLError, urllib.error.HTTPError) as exc:
+        raise EdgarLookupError(
+            f"SEC EDGAR has no XBRL company facts for CIK {cik} (HTTP {getattr(exc, 'code', '?')}). "
+            "This is often an ETF, index, or fund rather than an operating company — those don't "
+            "file the annual XBRL data this tool reads. An index like the S&P 500 isn't a company "
+            "at all, so there's no single filer to look up; ask about a specific constituent "
+            "company or an S&P 500 index fund's holdings instead."
+        ) from exc
 
 
 def get_latest_10k_filing(cik: str) -> dict[str, Any] | None:

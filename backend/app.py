@@ -101,7 +101,15 @@ def run_research(question: str) -> AskResponse:
             if block.type != "tool_use":
                 continue
             tool_calls_made.append(block.name)
-            result = tool_router.call_tool(block.name, block.input)
+            try:
+                result = tool_router.call_tool(block.name, block.input)
+            except Exception as exc:
+                # A tool failing (bad ticker, network hiccup, unexpected data shape) must
+                # never crash the whole request — hand the model a clear error it can
+                # explain to the user and route around, the same way a handled
+                # EdgarLookupError already does. An uncaught exception here previously
+                # surfaced as a raw 500 to the frontend instead of a graceful answer.
+                result = {"error": f"{block.name} failed: {exc}"}
             tool_results.append(
                 {"type": "tool_result", "tool_use_id": block.id, "content": _to_text(result)}
             )
@@ -162,7 +170,18 @@ def _enforce_safety(client: Anthropic, messages: list[dict[str, Any]], response:
 
 @app.post("/api/ask", response_model=AskResponse)
 def ask(request: AskRequest) -> AskResponse:
-    return run_research(request.question)
+    try:
+        return run_research(request.question)
+    except Exception as exc:
+        # Last line of defense: anything that escapes run_research (e.g. the
+        # Anthropic API call itself failing) still returns a normal
+        # AskResponse instead of a raw 500, so the frontend always has
+        # something sane to render.
+        return AskResponse(
+            answer=f"Something went wrong answering this question: {exc}",
+            tool_calls=[],
+            blocked=False,
+        )
 
 
 @app.get("/api/portfolio")
