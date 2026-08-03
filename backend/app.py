@@ -170,6 +170,36 @@ def portfolio() -> dict[str, Any]:
     return tool_router.get_portfolio_snapshot()
 
 
+class WatchlistAddRequest(BaseModel):
+    ticker: str
+    sector: str = ""
+
+
+@app.get("/api/watchlist")
+def watchlist() -> list[dict[str, Any]]:
+    """Watchlist entries enriched with a live quote and a short trend, for
+    the sidebar. Bypasses the chat/agent loop entirely — this is just data
+    display, not a research question, so there's no reason to route it
+    through the model."""
+    items = tool_router.get_watchlist()
+    enriched = []
+    for item in items:
+        quote = tool_router.get_quote(item["ticker"])
+        history = tool_router.get_price_history(item["ticker"], period="1mo")
+        enriched.append({**item, "quote": quote, "history": history.get("points", [])})
+    return enriched
+
+
+@app.post("/api/watchlist")
+def watchlist_add(request: WatchlistAddRequest) -> list[dict[str, Any]]:
+    return tool_router.add_to_watchlist(request.ticker, sector=request.sector)
+
+
+@app.delete("/api/watchlist/{ticker}")
+def watchlist_remove(ticker: str) -> list[dict[str, Any]]:
+    return tool_router.remove_from_watchlist(ticker)
+
+
 # Registered after the /api/* routes above: explicit path operations are
 # matched first, so this catch-all mount only ever serves the static
 # frontend (and index.html for "/") without shadowing the API.

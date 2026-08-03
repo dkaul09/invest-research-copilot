@@ -66,6 +66,78 @@ body {
 .pl-pos { color: #59d99a; }
 .pl-neg { color: #ef6a6a; }
 
+.watchlist-form {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.watchlist-form input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.watchlist-form button {
+  background: var(--accent);
+  color: #0e1117;
+  border: none;
+  border-radius: 4px;
+  width: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.watchlist-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.watchlist-row .wl-ticker {
+  width: 44px;
+  flex-shrink: 0;
+  font-weight: bold;
+}
+
+.watchlist-row .wl-spark {
+  flex-shrink: 0;
+}
+
+.watchlist-row .wl-price {
+  flex: 1;
+  text-align: right;
+}
+
+.watchlist-row .wl-remove {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 0 0 4px;
+}
+
+.watchlist-row .wl-remove:hover {
+  color: #ef6a6a;
+}
+
+.watchlist-error {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .prompts {
   list-style: none;
   padding: 0;

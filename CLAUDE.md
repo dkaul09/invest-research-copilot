@@ -36,6 +36,12 @@ opinion, but it can never act on one. See Hard Boundaries below.
   future adapter must satisfy. This is unrelated to and separate from the
   live EDGAR adapter below — EDGAR is public filing data, never account or
   brokerage data.
+- The **personal watchlist** (`src/tools/watchlist.py`,
+  `data/portfolio/watchlist.json`) is the one deliberate exception to
+  read-only: adding/removing a ticker you're tracking isn't a trade, so
+  `add_to_watchlist`/`remove_from_watchlist` are genuinely writable. This
+  does not weaken any boundary above — it's a to-do list, not account or
+  brokerage data.
 
 ## Vocabulary
 
@@ -55,11 +61,12 @@ correctly the first time.
 
 ## Tool contract
 
-Eight read-only MCP tools, served by `src/mcp_server.py` (see `.mcp.json`),
-all annotated `readOnlyHint: true`. Six operate in the closed local sandbox;
-two (`fetch_live_fundamentals`, `search_live_filings`) reach SEC EDGAR's
-public, keyless APIs and are annotated `openWorldHint: true` so it's visible
-they touch the network:
+Thirteen MCP tools, served by `src/mcp_server.py` (see `.mcp.json`).
+Eleven are read-only (`readOnlyHint: true`); `add_to_watchlist` and
+`remove_from_watchlist` are the one deliberate exception — a personal
+watchlist is a tracking list, not account or trade data, so it's fine for
+it to be genuinely writable. Four tools reach public network APIs (SEC
+EDGAR or live quote data) and are annotated `openWorldHint: true`:
 
 | Tool | Purpose |
 |---|---|
@@ -71,6 +78,10 @@ they touch the network:
 | `get_recent_research` | prior runs from the session ledger, for follow-ups |
 | `fetch_live_fundamentals` | deterministic ratios from a ticker's real SEC XBRL data |
 | `search_live_filings` | cited passages from a ticker's actual latest 10-K, fetched live |
+| `get_watchlist` | the user's personal watchlist |
+| `add_to_watchlist` / `remove_from_watchlist` | manage the watchlist — not a trade, safe to call freely |
+| `get_quote` | live price, previous close, day change for a ticker |
+| `get_price_history` | historical daily closes, for trend/chart display |
 
 The local filing corpus (`data/filings/`) covers **AAPL, MSFT, NKE** with
 hand-curated fundamentals. For any other ticker, use `fetch_live_fundamentals`
@@ -78,6 +89,11 @@ and `search_live_filings` instead of fabricating numbers or evidence —
 they pull real data from SEC EDGAR. Some XBRL fields (e.g. EBITDA, market
 cap/P/E) aren't available this way and will come back `null` rather than
 estimated; say so rather than filling the gap yourself.
+
+`get_quote`/`get_price_history` return **market price data, not a
+financial ratio** — never pass a live price into `compute_metrics` or
+state it as though it were a computed figure; it's a separate, honestly
+distinct kind of number (see `src/tools/quotes.py`).
 
 ## Workflow
 

@@ -10,6 +10,10 @@ data/portfolio/live_*.json
 data/sessions/*.jsonl
 data/sessions/*.json
 
+# Personal watchlist is user-editable local state, seeded on first run —
+# not a fixture to ship or overwrite in git.
+data/portfolio/watchlist.json
+
 # Traces and eval output are local artifacts
 logs/
 evals/results/*.json

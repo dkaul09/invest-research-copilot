@@ -22,6 +22,11 @@ from src.tools.filings_search import search_filings as _search_filings
 from src.tools.fundamentals import get_fundamentals
 from src.tools.mock_portfolio import load_default_adapter
 from src.tools.peer_compare import compare_peers as _compare_peers
+from src.tools.quotes import get_price_history as _get_price_history
+from src.tools.quotes import get_quote as _get_quote
+from src.tools.watchlist import add_to_watchlist as _add_to_watchlist
+from src.tools.watchlist import get_watchlist as _get_watchlist
+from src.tools.watchlist import remove_from_watchlist as _remove_from_watchlist
 
 
 @traced("get_portfolio_snapshot")
@@ -104,6 +109,31 @@ def search_live_filings(ticker: str, query: str, top_k: int = 3) -> dict[str, An
     return result
 
 
+@traced("get_watchlist")
+def get_watchlist() -> list[dict[str, Any]]:
+    return _get_watchlist()
+
+
+@traced("add_to_watchlist")
+def add_to_watchlist(ticker: str, sector: str = "") -> list[dict[str, Any]]:
+    return _add_to_watchlist(ticker, sector=sector)
+
+
+@traced("remove_from_watchlist")
+def remove_from_watchlist(ticker: str) -> list[dict[str, Any]]:
+    return _remove_from_watchlist(ticker)
+
+
+@traced("get_quote")
+def get_quote(ticker: str) -> dict[str, Any]:
+    return _get_quote(ticker)
+
+
+@traced("get_price_history")
+def get_price_history(ticker: str, period: str = "3mo") -> dict[str, Any]:
+    return _get_price_history(ticker, period=period)
+
+
 TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "get_portfolio_snapshot": get_portfolio_snapshot,
     "get_holding_detail": get_holding_detail,
@@ -113,6 +143,11 @@ TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "get_recent_research": get_recent_research,
     "fetch_live_fundamentals": fetch_live_fundamentals,
     "search_live_filings": search_live_filings,
+    "get_watchlist": get_watchlist,
+    "add_to_watchlist": add_to_watchlist,
+    "remove_from_watchlist": remove_from_watchlist,
+    "get_quote": get_quote,
+    "get_price_history": get_price_history,
 }
 
 # Anthropic Messages API tool-use schemas. input_schema follows JSON Schema.
@@ -208,6 +243,59 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "top_k": {"type": "integer", "default": 3},
             },
             "required": ["ticker", "query"],
+        },
+    },
+    {
+        "name": "get_watchlist",
+        "description": "Return the user's personal watchlist (tickers they're tracking, not held).",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "add_to_watchlist",
+        "description": (
+            "Add a ticker to the personal watchlist. This is not a trade — it's a tracking "
+            "list — so this is safe to call whenever the user asks to track/watch a ticker."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string"},
+                "sector": {"type": "string", "description": "Optional sector label."},
+            },
+            "required": ["ticker"],
+        },
+    },
+    {
+        "name": "remove_from_watchlist",
+        "description": "Remove a ticker from the personal watchlist.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"ticker": {"type": "string"}},
+            "required": ["ticker"],
+        },
+    },
+    {
+        "name": "get_quote",
+        "description": (
+            "Get the latest live price, previous close, and day change for a ticker. This is "
+            "market price data, not a financial ratio — never use it as an input to compute_metrics."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"ticker": {"type": "string"}},
+            "required": ["ticker"],
+        },
+    },
+    {
+        "name": "get_price_history",
+        "description": "Get historical daily closing prices for a ticker, for trend/chart display.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string"},
+                "period": {"type": "string", "description": "1mo, 3mo, 6mo, 1y, 5y, or max.", "default": "3mo"},
+            },
+            "required": ["ticker"],
         },
     },
 ]

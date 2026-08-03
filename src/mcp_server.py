@@ -1,10 +1,11 @@
-"""Read-only MCP server for the investment research copilot.
+"""MCP server for the investment research copilot.
 
-Exposes eight tools, all annotated read-only/non-destructive. Six operate
-in the closed local sandbox (mock portfolio + local filing corpus); two
-reach out to the public SEC EDGAR APIs and are annotated openWorldHint=True
-so a client can see they touch the network, while still being marked
-read-only/non-destructive since they only ever GET public filing data.
+Exposes thirteen tools. Eleven are read-only (account/filing data never
+mutated); two (`add_to_watchlist`, `remove_from_watchlist`) are the one
+deliberate exception — a personal watchlist is a tracking list, not
+account or trade data, so it's fine for it to be genuinely writable. Four
+tools reach public network APIs (SEC EDGAR or Yahoo quote data) and are
+annotated openWorldHint=True so a client can see they touch the network.
 
 All real logic lives in ``src/tool_router.py``, shared with the FastAPI
 backend (``backend/app.py``) used by the web/Telegram frontends — this file
@@ -22,6 +23,9 @@ mcp = FastMCP("invest-research-copilot")
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False, idempotentHint=True)
 READ_ONLY_LIVE = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=True, idempotentHint=False)
+# The watchlist is a personal tracking list, not account or trade data — the
+# only tools in this project that are intentionally not read-only.
+WATCHLIST_WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False, idempotentHint=False)
 
 
 @mcp.tool(annotations=READ_ONLY)
@@ -106,6 +110,44 @@ def search_live_filings(ticker: str, query: str, top_k: int = 3) -> dict[str, An
     ever performs GET requests against SEC's public data endpoints.
     """
     return tool_router.search_live_filings(ticker, query, top_k=top_k)
+
+
+@mcp.tool(annotations=READ_ONLY)
+def get_watchlist() -> list[dict[str, Any]]:
+    """Return the user's personal watchlist (tickers they're tracking, not held)."""
+    return tool_router.get_watchlist()
+
+
+@mcp.tool(annotations=WATCHLIST_WRITE)
+def add_to_watchlist(ticker: str, sector: str = "") -> list[dict[str, Any]]:
+    """Add a ticker to the personal watchlist.
+
+    Not a trade — this is a tracking list, not account or brokerage data —
+    so this is safe to call whenever the user asks to track/watch a ticker.
+    """
+    return tool_router.add_to_watchlist(ticker, sector=sector)
+
+
+@mcp.tool(annotations=WATCHLIST_WRITE)
+def remove_from_watchlist(ticker: str) -> list[dict[str, Any]]:
+    """Remove a ticker from the personal watchlist."""
+    return tool_router.remove_from_watchlist(ticker)
+
+
+@mcp.tool(annotations=READ_ONLY_LIVE)
+def get_quote(ticker: str) -> dict[str, Any]:
+    """Get the latest live price, previous close, and day change for a ticker.
+
+    This is market price data, not a financial ratio — never use it as an
+    input to compute_metrics or state it as a computed metric.
+    """
+    return tool_router.get_quote(ticker)
+
+
+@mcp.tool(annotations=READ_ONLY_LIVE)
+def get_price_history(ticker: str, period: str = "3mo") -> dict[str, Any]:
+    """Get historical daily closing prices for a ticker, for trend/chart display."""
+    return tool_router.get_price_history(ticker, period=period)
 
 
 if __name__ == "__main__":

@@ -46,10 +46,5 @@
       "current_price": 41.60,
       "sector": "Technology"
     }
-  ],
-  "watchlist": [
-    {"ticker": "AMD", "sector": "Technology"},
-    {"ticker": "COST", "sector": "Consumer Staples"},
-    {"ticker": "DIS", "sector": "Communication Services"}
   ]
 }

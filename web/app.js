@@ -3,6 +3,9 @@ const form = document.getElementById("ask-form");
 const questionInput = document.getElementById("question");
 const sendBtn = document.getElementById("send-btn");
 const portfolioEl = document.getElementById("portfolio");
+const watchlistEl = document.getElementById("watchlist");
+const watchlistForm = document.getElementById("watchlist-form");
+const watchlistTickerInput = document.getElementById("watchlist-ticker");
 
 function escapeHtml(str) {
   return str
@@ -83,6 +86,83 @@ async function loadPortfolio() {
   }
 }
 
+// Small inline SVG sparkline — no charting library needed for a fixed,
+// simple line-over-time shape like this.
+function renderSparkline(points, isUp) {
+  if (!points || points.length < 2) {
+    return `<svg class="wl-spark" width="60" height="24"></svg>`;
+  }
+  const closes = points.map((p) => p.close);
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const range = max - min || 1;
+  const w = 60, h = 24, pad = 2;
+  const step = (w - pad * 2) / (closes.length - 1);
+  const coords = closes.map((c, i) => {
+    const x = pad + i * step;
+    const y = h - pad - ((c - min) / range) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const color = isUp ? "#59d99a" : "#ef6a6a";
+  return `<svg class="wl-spark" width="${w}" height="${h}"><polyline points="${coords.join(" ")}" fill="none" stroke="${color}" stroke-width="1.5" /></svg>`;
+}
+
+async function loadWatchlist() {
+  try {
+    const res = await fetch("/api/watchlist");
+    const items = await res.json();
+    if (!items.length) {
+      watchlistEl.innerHTML = `<div class="watchlist-error">No tickers yet — add one above.</div>`;
+      return;
+    }
+    watchlistEl.innerHTML = items
+      .map((item) => {
+        const q = item.quote || {};
+        if (q.error) {
+          return `<div class="watchlist-row"><span class="wl-ticker">${item.ticker}</span><span class="wl-price">no data</span><button class="wl-remove" data-ticker="${item.ticker}">&times;</button></div>`;
+        }
+        const isUp = (q.change ?? 0) >= 0;
+        const changePct = q.change_pct != null ? `${(q.change_pct * 100).toFixed(1)}%` : "—";
+        const priceClass = isUp ? "pl-pos" : "pl-neg";
+        return `<div class="watchlist-row">
+          <span class="wl-ticker">${item.ticker}</span>
+          ${renderSparkline(item.history, isUp)}
+          <span class="wl-price ${priceClass}">$${q.price ?? "—"}<br>${changePct}</span>
+          <button class="wl-remove" data-ticker="${item.ticker}" title="Remove">&times;</button>
+        </div>`;
+      })
+      .join("");
+
+    watchlistEl.querySelectorAll(".wl-remove").forEach((btn) => {
+      btn.addEventListener("click", () => removeFromWatchlist(btn.dataset.ticker));
+    });
+  } catch (err) {
+    watchlistEl.innerHTML = `<div class="watchlist-error">Could not load watchlist.</div>`;
+  }
+}
+
+async function addToWatchlist(ticker) {
+  await fetch("/api/watchlist", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker }),
+  });
+  loadWatchlist();
+}
+
+async function removeFromWatchlist(ticker) {
+  await fetch(`/api/watchlist/${encodeURIComponent(ticker)}`, { method: "DELETE" });
+  loadWatchlist();
+}
+
+watchlistForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const ticker = watchlistTickerInput.value.trim().toUpperCase();
+  if (!ticker) return;
+  watchlistTickerInput.value = "";
+  addToWatchlist(ticker);
+});
+
 async function ask(question) {
   addMessage(question, "user");
   sendBtn.disabled = true;
@@ -131,3 +211,4 @@ document.querySelectorAll(".prompts li").forEach((li) => {
 });
 
 loadPortfolio();
+loadWatchlist();

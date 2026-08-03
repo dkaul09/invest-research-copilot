@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from src.adapters.base import PortfolioAdapter
+from src.tools.watchlist import get_watchlist
 
 DEFAULT_ACCOUNT_PATH = Path(__file__).resolve().parents[2] / "data" / "portfolio" / "mock_account.json"
 
@@ -40,7 +41,7 @@ class MockPortfolioAdapter(PortfolioAdapter):
             "as_of": self._account["as_of"],
             "cash": self._account["cash"],
             "holdings": holdings,
-            "watchlist": self._account["watchlist"],
+            "watchlist": get_watchlist(),
             "total_market_value": total_market_value,
             "total_portfolio_value": total_portfolio_value,
         }
