@@ -66,6 +66,77 @@ body {
 .pl-pos { color: #59d99a; }
 .pl-neg { color: #ef6a6a; }
 
+.new-chat-btn {
+  width: 100%;
+  background: #1d232d;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.new-chat-btn:hover {
+  border-color: var(--accent);
+}
+
+.chat-list {
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.chat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.chat-item:hover {
+  background: #1d232d;
+}
+
+.chat-item.active {
+  background: #1d232d;
+  border: 1px solid var(--accent);
+}
+
+.chat-item .chat-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-item .chat-remove {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+
+.chat-item .chat-remove:hover {
+  color: #ef6a6a;
+}
+
+.chat-ttl-note {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 4px 0 0 0;
+}
+
 .watchlist-form {
   display: flex;
   gap: 6px;

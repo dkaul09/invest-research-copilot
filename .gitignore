@@ -14,6 +14,9 @@ data/sessions/*.json
 # not a fixture to ship or overwrite in git.
 data/portfolio/watchlist.json
 
+# Personal chat history — not a fixture to ship, auto-prunes after a week.
+data/conversations/
+
 # Traces and eval output are local artifacts
 logs/
 evals/results/*.json

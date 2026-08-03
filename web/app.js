@@ -6,6 +6,10 @@ const portfolioEl = document.getElementById("portfolio");
 const watchlistEl = document.getElementById("watchlist");
 const watchlistForm = document.getElementById("watchlist-form");
 const watchlistTickerInput = document.getElementById("watchlist-ticker");
+const chatListEl = document.getElementById("chat-list");
+const newChatBtn = document.getElementById("new-chat-btn");
+
+let currentConversationId = null;
 
 function escapeHtml(str) {
   return str
@@ -163,13 +167,124 @@ watchlistForm.addEventListener("submit", (e) => {
   addToWatchlist(ticker);
 });
 
+function relativeTime(iso) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+async function loadChatList() {
+  try {
+    const res = await fetch("/api/conversations");
+    const chats = await res.json();
+    if (!chats.length) {
+      chatListEl.innerHTML = `<div class="watchlist-error">No chats yet.</div>`;
+      return;
+    }
+    chatListEl.innerHTML = chats
+      .map(
+        (c) => `<div class="chat-item${c.id === currentConversationId ? " active" : ""}" data-id="${c.id}">
+          <span class="chat-title" title="${escapeHtml(c.title)}">${escapeHtml(c.title)} &middot; ${relativeTime(c.updated_at)}</span>
+          <button class="chat-remove" data-id="${c.id}" title="Delete chat">&times;</button>
+        </div>`
+      )
+      .join("");
+
+    chatListEl.querySelectorAll(".chat-item").forEach((row) => {
+      row.addEventListener("click", (e) => {
+        if (e.target.classList.contains("chat-remove")) return;
+        switchChat(row.dataset.id);
+      });
+    });
+    chatListEl.querySelectorAll(".chat-remove").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteChat(btn.dataset.id);
+      });
+    });
+  } catch (err) {
+    chatListEl.innerHTML = `<div class="watchlist-error">Could not load chats.</div>`;
+  }
+}
+
+function clearLog() {
+  log.innerHTML = "";
+}
+
+async function switchChat(id) {
+  currentConversationId = id;
+  clearLog();
+  try {
+    const res = await fetch(`/api/conversations/${id}`);
+    if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+    const conversation = await res.json();
+    if (!conversation.messages.length) {
+      addMessage(
+        "Ask a research question about your holdings or watchlist. Every answer is a research " +
+          "note grounded in real metrics and filings — including a stated view when you ask for one.",
+        "system"
+      );
+    }
+    for (const m of conversation.messages) {
+      if (m.role === "user") addMessage(m.text, "user");
+      else addAnswer(m.text, false);
+    }
+  } catch (err) {
+    addMessage(`Error loading chat: ${err.message}`, "system");
+  }
+  loadChatList();
+}
+
+async function createNewChat() {
+  const res = await fetch("/api/conversations", { method: "POST" });
+  const conversation = await res.json();
+  currentConversationId = conversation.id;
+  clearLog();
+  addMessage(
+    "Ask a research question about your holdings or watchlist. Every answer is a research " +
+      "note grounded in real metrics and filings — including a stated view when you ask for one.",
+    "system"
+  );
+  loadChatList();
+  questionInput.focus();
+}
+
+async function deleteChat(id) {
+  await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+  if (id === currentConversationId) {
+    currentConversationId = null;
+    await bootstrapChats();
+  } else {
+    loadChatList();
+  }
+}
+
+async function bootstrapChats() {
+  const res = await fetch("/api/conversations");
+  const chats = await res.json();
+  if (chats.length) {
+    await switchChat(chats[0].id);
+  } else {
+    await createNewChat();
+  }
+}
+
+newChatBtn.addEventListener("click", createNewChat);
+
 async function ask(question) {
+  if (!currentConversationId) {
+    await createNewChat();
+  }
   addMessage(question, "user");
   sendBtn.disabled = true;
   const loadingEl = addMessage("Researching…", "loading");
 
   try {
-    const res = await fetch("/api/ask", {
+    const res = await fetch(`/api/conversations/${currentConversationId}/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
@@ -180,6 +295,7 @@ async function ask(question) {
     const data = await res.json();
     loadingEl.remove();
     addAnswer(data.answer, data.blocked);
+    loadChatList();
   } catch (err) {
     loadingEl.remove();
     addMessage(`Error: ${err.message}`, "system");
@@ -212,3 +328,4 @@ document.querySelectorAll(".prompts li").forEach((li) => {
 
 loadPortfolio();
 loadWatchlist();
+bootstrapChats();

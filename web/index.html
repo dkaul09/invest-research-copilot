@@ -12,6 +12,11 @@
       <h1>Research Copilot</h1>
       <p class="tag">Read-only &middot; never places trades</p>
 
+      <h2>Chats</h2>
+      <button id="new-chat-btn" class="new-chat-btn">+ New chat</button>
+      <div id="chat-list" class="chat-list">Loading…</div>
+      <p class="chat-ttl-note">Chats auto-delete after a week of inactivity.</p>
+
       <h2>Portfolio</h2>
       <div id="portfolio" class="portfolio">Loading…</div>
 
@@ -33,13 +38,7 @@
     </aside>
 
     <main class="main">
-      <div id="log" class="log">
-        <div class="msg system">
-          Ask a research question about your holdings or watchlist. Every answer is a research
-          note — metrics, citations, risks, and open questions. This tool never recommends buying
-          or selling anything.
-        </div>
-      </div>
+      <div id="log" class="log">Loading…</div>
 
       <form id="ask-form" class="ask-form">
         <textarea id="question" placeholder="Ask a research question…" rows="2"></textarea>

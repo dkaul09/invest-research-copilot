@@ -29,13 +29,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from anthropic import Anthropic  # noqa: E402
-from fastapi import FastAPI  # noqa: E402
+from fastapi import FastAPI, HTTPException  # noqa: E402
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.system_prompt import build_system_prompt
 from src import tool_router
 from src.safety import contains_banned_language
+from src.state import conversations as conversation_store
 from src.state.session_store import get_default_store
 
 MODEL = "claude-sonnet-5"
@@ -70,14 +71,24 @@ class AskResponse(BaseModel):
     blocked: bool = False
 
 
-def run_research(question: str) -> AskResponse:
-    """Drive the tool-use loop for one question and return the final note."""
+def run_research(question: str, history: list[dict[str, Any]] | None = None) -> AskResponse:
+    """Drive the tool-use loop for one question and return the final note.
+
+    ``history`` is prior turns from the same conversation — [{"role":
+    "user"|"assistant", "text": ...}, ...] — replayed as plain text turns
+    so the model has continuity ("compare that to what we found for AAPL")
+    without persisting raw tool-use blocks, which would be fragile across
+    tool schema changes and unnecessarily large to store.
+    """
     client = get_client()
     store = get_default_store()
     run_id = str(uuid.uuid4())
     store.start_run(run_id, question)
 
-    messages: list[dict[str, Any]] = [{"role": "user", "content": question}]
+    messages: list[dict[str, Any]] = [
+        {"role": h["role"], "content": h["text"]} for h in (history or [])
+    ]
+    messages.append({"role": "user", "content": question})
     tool_calls_made: list[str] = []
 
     for _ in range(MAX_TOOL_ITERATIONS):
@@ -187,6 +198,50 @@ def ask(request: AskRequest) -> AskResponse:
 @app.get("/api/portfolio")
 def portfolio() -> dict[str, Any]:
     return tool_router.get_portfolio_snapshot()
+
+
+@app.post("/api/conversations")
+def create_conversation() -> dict[str, Any]:
+    return conversation_store.create_conversation()
+
+
+@app.get("/api/conversations")
+def list_conversations() -> list[dict[str, Any]]:
+    """Newest-first. Any conversation untouched for over a week is pruned
+    (deleted) as a side effect of listing — see conversations.py."""
+    return conversation_store.list_conversations()
+
+
+@app.get("/api/conversations/{conversation_id}")
+def get_conversation(conversation_id: str) -> dict[str, Any]:
+    conversation = conversation_store.get_conversation(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found (it may have expired).")
+    return conversation
+
+
+@app.delete("/api/conversations/{conversation_id}")
+def delete_conversation(conversation_id: str) -> dict[str, str]:
+    conversation_store.delete_conversation(conversation_id)
+    return {"status": "deleted"}
+
+
+@app.post("/api/conversations/{conversation_id}/ask", response_model=AskResponse)
+def ask_in_conversation(conversation_id: str, request: AskRequest) -> AskResponse:
+    conversation = conversation_store.get_conversation(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found (it may have expired).")
+
+    history = [{"role": m["role"], "text": m["text"]} for m in conversation["messages"]]
+    try:
+        response = run_research(request.question, history=history)
+    except Exception as exc:
+        response = AskResponse(
+            answer=f"Something went wrong answering this question: {exc}", tool_calls=[], blocked=False
+        )
+
+    conversation_store.append_turn(conversation_id, request.question, response.answer, response.tool_calls)
+    return response
 
 
 class WatchlistAddRequest(BaseModel):
