@@ -16,10 +16,19 @@ extra service to run.
 from __future__ import annotations
 
 import json
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 DEFAULT_STORE_PATH = Path(__file__).resolve().parents[2] / "data" / "sessions" / "runs.jsonl"
+
+EMPTY_VIEW: dict[str, Any] = {
+    "rating": None,
+    "tickers": [],
+    "view_price": {},
+    "change_my_mind": [],
+}
 
 
 class SessionStore:
@@ -51,11 +60,41 @@ class SessionStore:
             {"ticker": ticker, "section": section, "source_url": source_url}
         )
 
-    def finish_run(self, note_path: str | None = None) -> dict[str, Any]:
+    def finish_run(
+        self,
+        note_path: str | None = None,
+        note_text: str | None = None,
+        view: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Close the open run and append it to the ledger.
+
+        ``note_text`` is the note itself: passing it persists the markdown
+        under ``data/notes/<run_id>.md`` and sets ``note_path`` to point at
+        it. ``note_path`` remains accepted for callers that manage their own
+        note files. ``view`` records what the note actually concluded — the
+        rating, the tickers it covered, and the price each was quoted at —
+        so a stated view can later be checked against what happened.
+        """
         if self._current_run is None:
             raise RuntimeError("finish_run called before start_run")
-        self._current_run["note_path"] = note_path
+
         record = self._current_run
+        record["note_path"] = note_path
+        record["timestamp"] = (
+            datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        )
+        record["view"] = {**EMPTY_VIEW, **(view or {})}
+
+        if note_text:
+            notes_dir = self._path.parent.parent / "notes"
+            notes_dir.mkdir(parents=True, exist_ok=True)
+            note_file = notes_dir / f"{record['run_id']}.md"
+            note_file.write_text(note_text, encoding="utf-8")
+            # Stored relative to the ledger so the pair stays portable if the
+            # data directory moves. ``notes/`` is a sibling of ``sessions/``,
+            # so this is a "../notes/<run_id>.md" style path.
+            record["note_path"] = os.path.relpath(note_file, self._path.parent)
+
         with open(self._path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
         self._current_run = None
@@ -66,7 +105,26 @@ class SessionStore:
             return []
         with open(self._path, "r", encoding="utf-8") as f:
             lines = [json.loads(line) for line in f if line.strip()]
+        # Rows written before views were recorded lack the key entirely.
+        # Normalising on read keeps every consumer free of defensive lookups.
+        for row in lines:
+            row.setdefault("view", dict(EMPTY_VIEW))
+            row.setdefault("timestamp", None)
         return lines[-n:]
+
+    def recorded_views(self) -> list[dict[str, Any]]:
+        """Every run that stated a rating and has a timestamp, oldest first."""
+        return [
+            r
+            for r in self.recent_runs(n=10_000)
+            if (r.get("view") or {}).get("rating") and r.get("timestamp")
+        ]
+
+    def current_tool_calls(self) -> list[dict[str, Any]]:
+        """Tool calls recorded so far in the currently open run."""
+        if self._current_run is None:
+            return []
+        return list(self._current_run["tool_calls"])
 
     def provenance_for(self, ticker: str) -> list[dict[str, Any]]:
         """All recorded tool calls and citations that touched ``ticker``."""
