@@ -37,6 +37,16 @@ opinion, but it can never act on one. See Hard Boundaries below.
   — ticker, section heading, and source URL. No citation, no claim. A view
   or rating must be traceable to the metrics/citations gathered this turn,
   not asserted from nowhere.
+- **A headline is press coverage, and must be reported as one — a filing
+  outranks it.** `fetch_recent_news` is a citation source, not a number
+  source: cite an article by publisher, date, and URL, and never state a
+  figure that appeared only in a news story as though a tool produced it.
+  News can raise a risk, add timeliness, or open a question; it can never be
+  the sole basis for a view or contradict a filing-derived figure. There is
+  deliberately **no sentiment score** anywhere in this project and none may
+  be invented — a polarity number traces back to nothing but a model's
+  judgment while looking computed. Characterize tone in prose tied to
+  specific cited articles instead.
 - Robinhood (or any brokerage) integration, if added later, is **read-only
   by construction**: holdings, cost basis, watchlist, and cash only. See
   `src/adapters/robinhood_readonly.py` for the documented constraints any
@@ -55,7 +65,8 @@ opinion, but it can never act on one. See Hard Boundaries below.
 Opinions and ratings are allowed and encouraged when grounded in the
 analysis: *bullish, bearish, neutral, buy, hold, sell, watchlist candidate,
 overweight, underweight, research note, risks, open questions, needs more
-evidence.*
+evidence, recent developments, press coverage, news-backed observation,
+reported, according to <publisher>.*
 
 Never claim an action was actually taken: *I've placed/executed/submitted
 this trade, your order was filled, order confirmed, I bought/sold X.* These
@@ -68,12 +79,13 @@ correctly the first time.
 
 ## Tool contract
 
-Fourteen MCP tools, served by `src/mcp_server.py` (see `.mcp.json`).
-Twelve are read-only (`readOnlyHint: true`); `add_to_watchlist` and
+Fifteen MCP tools, served by `src/mcp_server.py` (see `.mcp.json`).
+Thirteen are read-only (`readOnlyHint: true`); `add_to_watchlist` and
 `remove_from_watchlist` are the one deliberate exception — a personal
 watchlist is a tracking list, not account or trade data, so it's fine for
-it to be genuinely writable. Five tools reach public network APIs (SEC
-EDGAR or live quote data) and are annotated `openWorldHint: true`:
+it to be genuinely writable. Six tools reach public network APIs (SEC
+EDGAR, live quote data, or the news feed) and are annotated
+`openWorldHint: true`:
 
 | Tool | Purpose |
 |---|---|
@@ -90,6 +102,7 @@ EDGAR or live quote data) and are annotated `openWorldHint: true`:
 | `get_quote` | live price, previous close, day change for a ticker |
 | `get_price_history` | historical daily closes, for trend/chart display |
 | `fetch_market_valuation` | P/E, market cap, EV/EBITDA from a live price + filing figures |
+| `fetch_recent_news` | recent press coverage — headline, publisher, URL, date; a citation source, never a number source |
 
 The local filing corpus (`data/filings/`) covers **AAPL, MSFT, NKE** with
 hand-curated fundamentals. For any other ticker, use `fetch_live_fundamentals`
@@ -140,6 +153,11 @@ file for the full spec and a worked example.
   EDGAR's free, keyless public APIs (ticker→CIK lookup, XBRL company facts,
   the actual latest 10-K document), disk-cached under `data/edgar_cache/`
   (gitignored). Use for any ticker outside the local corpus.
+- News: `src/tools/news.py` reads Yahoo Finance's per-ticker news feed via
+  `yfinance` (keyless, already a dependency). The feed mixes wire services
+  with low-quality aggregators, which is exactly why every article carries
+  its publisher — a reader discounts the source themselves, which a
+  sentiment score would have silently averaged away.
 
 ## State & observability
 

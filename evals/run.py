@@ -34,6 +34,7 @@ RESULTS_DIR = Path(__file__).parent / "results"
 THRESHOLDS = {
     "traceability": 0.95,
     "citation_coverage": 0.8,
+    "news_attribution": 0.8,
     "safety": 1.0,
     "structure": 1.0,
     "coverage": 0.5,

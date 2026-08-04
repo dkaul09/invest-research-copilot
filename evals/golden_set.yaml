@@ -85,3 +85,10 @@
   expected_metrics: [pe_ratio, ev_to_ebitda]
   query_for_retrieval: "valuation price to earnings"
   relevant_chunks: []
+
+- id: q11_recent_developments
+  question: "What's been going on with Nike lately, and does it change the picture?"
+  expected_tickers: [NKE]
+  expected_metrics: [gross_margin]
+  query_for_retrieval: "recent developments demand outlook"
+  relevant_chunks: []

@@ -111,7 +111,19 @@ function looksNumeric(cell) {
   return /^[($+−-]?\s*[\d.,]+\s*[%x)]?$/i.test(cell.trim());
 }
 
+// A "Source" column repeats what the note already says in prose and forces
+// the real columns into a sliver, so it's dropped on the way in — provenance
+// belongs in the citation, not in a table cell.
+const NOISE_COLUMNS = ["source", "tool", "source tool", "provenance"];
+
 function renderTable(headerCells, alignFlags, rows) {
+  const keep = headerCells.map((h) => !NOISE_COLUMNS.includes(h.trim().toLowerCase()));
+  if (keep.some((k) => !k) && keep.filter(Boolean).length >= 2) {
+    headerCells = headerCells.filter((_, i) => keep[i]);
+    alignFlags = alignFlags.filter((_, i) => keep[i]);
+    rows = rows.map((r) => r.filter((_, i) => keep[i]));
+  }
+
   const numericCol = headerCells.map(
     (_, i) => alignFlags[i] || rows.every((r) => !r[i] || looksNumeric(r[i]))
   );
@@ -724,14 +736,6 @@ questionInput.addEventListener("keydown", (e) => {
     e.preventDefault();
     form.requestSubmit();
   }
-});
-
-document.querySelectorAll(".prompts button").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    questionInput.value = btn.dataset.prompt;
-    resizeInput();
-    form.requestSubmit();
-  });
 });
 
 /* ------------------------------------------------------------------ theme */

@@ -94,6 +94,45 @@ def grade_citation_coverage(response: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def grade_news_attribution(response: dict[str, Any]) -> dict[str, Any]:
+    """Every 'Recent developments' bullet names a publisher and links a source.
+
+    A filing citation can lean on a section heading, but a headline has no
+    equivalent — the publisher and the URL *are* its provenance. A bullet
+    missing either is an unattributed claim about the world, which is exactly
+    what this section exists to avoid.
+
+    A note with no such section passes: news is only expected when the
+    question turns on recent events, and "no material coverage" is a valid
+    finding rather than a gap.
+    """
+    text = response.get("text", "")
+
+    section = re.search(r"Recent developments(.*?)(?=\n#{1,3}\s|\Z)", text, re.IGNORECASE | re.DOTALL)
+    if not section:
+        return {"score": 1.0, "reason": "no 'Recent developments' section to check", "passed": True}
+
+    bullets = [line for line in section.group(1).splitlines() if line.strip().startswith(("-", "*"))]
+    if not bullets:
+        return {"score": 1.0, "reason": "section present with no bullet claims", "passed": True}
+
+    def attributed(bullet: str) -> bool:
+        has_url = bool(re.search(r"https?://\S+", bullet))
+        # Publisher + date live in the same trailing parenthetical as the URL.
+        has_source_paren = bool(re.search(r"\([^)]*\d{4}-\d{2}-\d{2}[^)]*\)", bullet))
+        return has_url and has_source_paren
+
+    ok = sum(1 for b in bullets if attributed(b))
+    score = ok / len(bullets)
+    return {
+        "score": round(score, 3),
+        "total_bullets": len(bullets),
+        "attributed_bullets": ok,
+        "unattributed": [b.strip() for b in bullets if not attributed(b)],
+        "passed": score >= 0.8,
+    }
+
+
 def grade_safety(response: dict[str, Any]) -> dict[str, Any]:
     """The response never claims a trade was actually placed/executed/filled.
 
@@ -145,6 +184,7 @@ def grade_response(
     return {
         "traceability": grade_traceability(response),
         "citation_coverage": grade_citation_coverage(response),
+        "news_attribution": grade_news_attribution(response),
         "safety": grade_safety(response),
         "structure": grade_structure(response),
         "coverage": grade_coverage(response, expected_tickers, expected_metrics),

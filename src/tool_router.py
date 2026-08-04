@@ -22,6 +22,7 @@ from src.tools.filings_search import search_filings as _search_filings
 from src.tools.fundamentals import get_fundamentals
 from src.tools.market_valuation import compute_market_valuation as _compute_market_valuation
 from src.tools.mock_portfolio import load_default_adapter
+from src.tools.news import fetch_recent_news as _fetch_recent_news
 from src.tools.peer_compare import compare_peers as _compare_peers
 from src.tools.quotes import get_price_history as _get_price_history
 from src.tools.quotes import get_quote as _get_quote
@@ -146,6 +147,21 @@ def fetch_market_valuation(ticker: str) -> dict[str, Any]:
     return result
 
 
+@traced("fetch_recent_news")
+def fetch_recent_news(ticker: str, limit: int = 8) -> dict[str, Any]:
+    result = _fetch_recent_news(ticker, limit=limit)
+    store = get_default_store()
+    try:
+        store.record_tool_call(
+            "fetch_recent_news",
+            {"ticker": ticker.upper(), "limit": limit},
+            {"as_of": result.get("as_of"), "count": result.get("count")},
+        )
+    except RuntimeError:
+        pass
+    return result
+
+
 TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "get_portfolio_snapshot": get_portfolio_snapshot,
     "get_holding_detail": get_holding_detail,
@@ -161,6 +177,7 @@ TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "get_quote": get_quote,
     "get_price_history": get_price_history,
     "fetch_market_valuation": fetch_market_valuation,
+    "fetch_recent_news": fetch_recent_news,
 }
 
 # Anthropic Messages API tool-use schemas. input_schema follows JSON Schema.
@@ -324,6 +341,26 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "input_schema": {
             "type": "object",
             "properties": {"ticker": {"type": "string"}},
+            "required": ["ticker"],
+        },
+    },
+    {
+        "name": "fetch_recent_news",
+        "description": (
+            "Get recent press coverage for a ticker — headline, publisher, URL, and publish "
+            "time per article. This is a citation source, not a number source: cite an article "
+            "by publisher and date, and never state a figure that appears only in a news story "
+            "as though a tool computed it. A filing outranks a headline — news can raise a "
+            "risk, add timeliness, or open a question, but it can never be the sole basis for "
+            "an investment view or contradict a filing-derived figure. There is deliberately "
+            "no sentiment score: characterize tone in prose tied to specific cited articles."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string"},
+                "limit": {"type": "integer", "description": "Max articles to return.", "default": 8},
+            },
             "required": ["ticker"],
         },
     },

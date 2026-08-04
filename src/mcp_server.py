@@ -164,5 +164,20 @@ def fetch_market_valuation(ticker: str) -> dict[str, Any]:
     return tool_router.fetch_market_valuation(ticker)
 
 
+@mcp.tool(annotations=READ_ONLY_LIVE)
+def fetch_recent_news(ticker: str, limit: int = 8) -> dict[str, Any]:
+    """Get recent press coverage for a ticker: headline, publisher, URL, publish time.
+
+    This is a citation source, not a number source. Cite an article by
+    publisher and date; never state a figure that appears only in a news
+    story as though a tool computed it. A filing outranks a headline — news
+    can raise a risk, add timeliness, or open a question, but it can never be
+    the sole basis for an investment view or contradict a filing-derived
+    figure. There is deliberately no sentiment score: characterize tone in
+    prose tied to specific cited articles. Read-only.
+    """
+    return tool_router.fetch_recent_news(ticker, limit=limit)
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

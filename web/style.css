@@ -3,9 +3,8 @@
 
    The reference object is an analyst's marked-up filing sitting on columnar
    accounting paper: cool grey-green stock, banded table rows, hairline
-   rules, section names written in the margin, and one oxblood stamp for the
-   verdict. Everything here derives from that; the stamp is the only place
-   the page raises its voice.
+   rules, and section names written in the margin. Everything here derives
+   from that; the note itself carries the emphasis, not the chrome.
 
    Three settings, one identity — the same note read three ways. Terminal
    (default) is the phosphor screen: green on black, all-mono, square. Paper
@@ -97,14 +96,10 @@
 :root[data-theme="terminal"] .sec-body li { font-size: 13.5px; }
 
 /* Nothing on a terminal sits at an angle, and there is no ink to emboss —
-   the stamp and the verdict get bracketed instead, the way a machine would
-   have marked them. */
-:root[data-theme="terminal"] .stamp-badge,
+   the verdict gets bracketed instead, the way a machine would have marked it. */
 :root[data-theme="terminal"] .verdict {
   transform: none;
   box-shadow: none;
-}
-:root[data-theme="terminal"] .verdict {
   border: none;
   padding: 0;
   font-size: 18px;
@@ -195,27 +190,6 @@ body {
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
-
-/* The read-only stamp: the promise this product is built on, rendered the
-   way a filing clerk would have made it. */
-.stamp-badge {
-  margin: 0;
-  padding: 5px 12px 6px;
-  border: 1.5px solid var(--stamp);
-  border-radius: var(--radius);
-  box-shadow: inset 0 0 0 1px var(--paper), 0 0 0 1px var(--stamp-soft);
-  color: var(--stamp);
-  font-family: var(--font-display);
-  font-size: 13px;
-  line-height: 1.15;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  text-align: center;
-  transform: rotate(-3deg);
-  opacity: 0.9;
-}
-.stamp-badge span { display: block; }
-.stamp-badge span + span { font-size: 10px; letter-spacing: 0.2em; }
 
 .theme-toggle {
   flex: none;
@@ -453,40 +427,6 @@ body {
 .wl-quote .wl-change { display: block; font-size: 10px; }
 .wl-missing { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); }
 
-/* Quick prompts */
-
-.prompts { list-style: none; margin: 0; padding: 0; }
-.prompts li + li { margin-top: 4px; }
-.prompts button {
-  width: 100%;
-  text-align: left;
-  padding: 7px 10px 7px 20px;
-  position: relative;
-  background: none;
-  border: none;
-  border-radius: var(--radius);
-  color: var(--ink);
-  font-family: var(--font-body);
-  font-size: 14px;
-  line-height: 1.35;
-  cursor: pointer;
-}
-.prompts button::before {
-  content: "\203A";
-  position: absolute;
-  left: 8px;
-  color: var(--stamp);
-}
-.prompts button:hover { background: var(--card); }
-.prompt-src {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-
 /* ------------------------------------------------------------------- main */
 
 .main {
@@ -662,12 +602,16 @@ body {
 
 /* Metrics table: the ledger band, doing what it does on paper. */
 .metrics-wrap { overflow-x: auto; margin: 0 0 10px; }
+/* Sized to its contents, not to the column. A metrics table with three
+   columns stretched across a full-width note reads as mostly blank space. */
 .metrics {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   border-collapse: collapse;
   font-family: var(--font-mono);
   font-size: 12px;
 }
+.metrics td:not(.num), .metrics th:not(.num) { padding-right: 26px; }
 .metrics th {
   font-family: var(--font-display);
   font-size: 11.5px;
@@ -916,8 +860,6 @@ body {
 
   .masthead { padding: 10px 14px; gap: 12px; }
   .wordmark h1 { font-size: 22px; }
-  .stamp-badge { font-size: 11px; padding: 4px 9px 5px; }
-  .stamp-badge span + span { font-size: 9px; }
 
   .log { padding: 20px 14px 32px; }
   .ask-form { padding: 12px 14px 16px; }
@@ -933,7 +875,6 @@ body {
     border-bottom: 1px solid var(--rule-2);
     padding: 0 0 4px;
   }
-  .stamp-badge { display: none; }
   .verdict { font-size: 18px; }
   .ask-form button { padding: 12px 14px; }
 }

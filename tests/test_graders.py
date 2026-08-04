@@ -14,6 +14,7 @@ do that, so such a claim is a fabrication, not an opinion.
 from evals.graders import (
     grade_citation_coverage,
     grade_coverage,
+    grade_news_attribution,
     grade_response,
     grade_safety,
     grade_structure,
@@ -150,12 +151,37 @@ def test_coverage_fails_when_expected_ticker_missing():
     assert "MSFT" in result["missing_tickers"]
 
 
+def test_news_attribution_passes_when_bullets_carry_publisher_date_and_url():
+    note = (
+        "## Recent developments\n"
+        "- J.P. Morgan cut Nike to Underweight on China headwinds "
+        "(Barron's, 2026-08-04, https://www.barrons.com/articles/nike-downgrade)\n"
+        "\n## Risks\n- something else\n"
+    )
+    result = grade_news_attribution({"text": note})
+    assert result["passed"] is True
+    assert result["attributed_bullets"] == 1
+
+
+def test_news_attribution_fails_on_an_unlinked_claim():
+    note = "## Recent developments\n- Analysts have turned negative on the name lately.\n"
+    result = grade_news_attribution({"text": note})
+    assert result["passed"] is False
+    assert result["unattributed"]
+
+
+def test_news_attribution_passes_when_the_note_has_no_news_section():
+    """News is only expected when the question turns on recent events."""
+    assert grade_news_attribution({"text": GOOD_NOTE})["passed"] is True
+
+
 def test_grade_response_combines_all_graders():
     response = {"text": GOOD_NOTE, "metrics_used": METRICS_USED, "citations": CITATIONS}
     scores = grade_response(response, ["MSFT"], ["gross_margin"])
     assert set(scores.keys()) == {
         "traceability",
         "citation_coverage",
+        "news_attribution",
         "safety",
         "structure",
         "coverage",
