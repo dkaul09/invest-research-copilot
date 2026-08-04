@@ -43,11 +43,19 @@ call in this workflow.
 3. **Compute metrics.** For each ticker under review, call `compute_metrics`
    if it's in the local corpus (AAPL, MSFT, NKE), or `fetch_live_fundamentals`
    for any other ticker — the latter pulls real numbers from SEC XBRL data.
-   This returns quality (margins), leverage (net debt/EBITDA, interest
-   coverage, current ratio), valuation (P/E, EV/EBITDA), and growth ratios,
-   plus the exact inputs used. Some fields from `fetch_live_fundamentals`
-   (EBITDA, market cap, and anything derived from them) will be `null` —
-   state that plainly rather than filling the gap. For portfolio
+   If the question turns on valuation — whether something is expensive, how
+   much growth is priced in, any request for a rating on a non-corpus
+   ticker — also call `fetch_market_valuation`, which is the only tool that
+   can produce a P/E or EV/EBITDA. Report what it returns with the price and
+   as-of time attached, and never present a multiple as though it came out
+   of a filing.
+   Together these return quality (margins), leverage (net debt/EBITDA,
+   interest coverage, current ratio), valuation (P/E, EV/EBITDA), and growth
+   ratios, plus the exact inputs used. `fetch_live_fundamentals` still
+   returns `null` for market cap and anything priced off it — that's the
+   division of labour, not a failure. Any field that does come back `null`
+   carries a reason; state it plainly rather than filling the gap. For
+   portfolio
    concentration, use the `weights`/`hhi`/`top_position_weight` fields
    already present in `get_portfolio_snapshot`.
 
@@ -88,6 +96,7 @@ call in this workflow.
 | `compare_peers` | side-by-side metric table vs named peers (local corpus) |
 | `get_recent_research` | prior runs, for follow-up questions |
 | `fetch_live_fundamentals` | deterministic ratios from real SEC XBRL data, any other ticker |
+| `fetch_market_valuation` | P/E, market cap, EV/EBITDA — the only source of a valuation multiple |
 | `search_live_filings` | cited passages from a ticker's actual latest 10-K, any other ticker |
 
 ## Example

@@ -5,44 +5,76 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Investment Research Copilot</title>
   <link rel="stylesheet" href="/style.css" />
+  <script>
+    // Applied before first paint so a stored setting never flashes.
+    (function () {
+      var stored = localStorage.getItem("copilot-theme");
+      var themes = ["terminal", "light", "microfilm"];
+      document.documentElement.setAttribute(
+        "data-theme", themes.indexOf(stored) === -1 ? "terminal" : stored
+      );
+    })();
+  </script>
 </head>
 <body>
-  <div class="app">
-    <aside class="sidebar">
+  <header class="masthead">
+    <button id="rail-toggle" class="rail-toggle" aria-expanded="false" aria-controls="rail">Desk</button>
+
+    <div class="wordmark">
+      <span class="wordmark-eyebrow">Equity desk</span>
       <h1>Research Copilot</h1>
-      <p class="tag">Read-only &middot; never places trades</p>
+    </div>
 
-      <h2>Chats</h2>
-      <button id="new-chat-btn" class="new-chat-btn">+ New chat</button>
-      <div id="chat-list" class="chat-list">Loading…</div>
-      <p class="chat-ttl-note">Chats auto-delete after a week of inactivity.</p>
+    <p class="stamp-badge" aria-label="This tool is read-only and has no execution path">
+      <span>Read only</span>
+      <span>No execution</span>
+    </p>
 
-      <h2>Portfolio</h2>
-      <div id="portfolio" class="portfolio">Loading…</div>
+    <button id="theme-toggle" class="theme-toggle" type="button">Terminal</button>
+  </header>
 
-      <h2>Watchlist</h2>
-      <form id="watchlist-form" class="watchlist-form">
-        <input id="watchlist-ticker" type="text" placeholder="Add ticker…" maxlength="10" autocomplete="off" />
-        <button type="submit">+</button>
-      </form>
-      <div id="watchlist" class="watchlist">Loading…</div>
+  <div class="app">
+    <aside class="rail" id="rail">
+      <section class="block">
+        <h2 class="block-label">Chats</h2>
+        <button id="new-chat-btn" class="new-chat-btn">Start a new chat</button>
+        <div id="chat-list" class="chat-list"><p class="block-note">Loading…</p></div>
+        <p class="block-note">Chats are deleted after a week without activity.</p>
+      </section>
 
-      <h2>Try asking</h2>
-      <ul class="prompts">
-        <li data-prompt="Analyze my current holdings by quality, leverage, valuation, and concentration.">Analyze my holdings</li>
-        <li data-prompt="Summarize the main risks across my portfolio.">Summarize portfolio risks</li>
-        <li data-prompt="Compare MSFT to peers.">Compare MSFT to peers</li>
-        <li data-prompt="Explain why Nike's margins changed using its 10-K.">Explain NKE's margins</li>
-        <li data-prompt="What litigation risk does JNJ disclose?">JNJ litigation risk (live EDGAR)</li>
-      </ul>
+      <section class="block">
+        <h2 class="block-label">Portfolio</h2>
+        <div id="portfolio" class="portfolio"><p class="block-note">Loading…</p></div>
+      </section>
+
+      <section class="block">
+        <h2 class="block-label">Watchlist</h2>
+        <form id="watchlist-form" class="watchlist-form">
+          <input id="watchlist-ticker" type="text" placeholder="Add a ticker" maxlength="10" autocomplete="off" aria-label="Ticker to add to watchlist" />
+          <button type="submit">Add</button>
+        </form>
+        <div id="watchlist" class="watchlist"><p class="block-note">Loading…</p></div>
+      </section>
+
+      <section class="block">
+        <h2 class="block-label">Try asking</h2>
+        <ul class="prompts">
+          <li><button type="button" data-prompt="Analyze my current holdings by quality, leverage, valuation, and concentration.">Analyze my holdings</button></li>
+          <li><button type="button" data-prompt="Summarize the main risks across my portfolio.">Summarize portfolio risks</button></li>
+          <li><button type="button" data-prompt="Compare MSFT to peers.">Compare MSFT to peers</button></li>
+          <li><button type="button" data-prompt="Explain why Nike's margins changed using its 10-K.">Explain NKE's margins</button></li>
+          <li><button type="button" data-prompt="What litigation risk does JNJ disclose?">JNJ litigation risk <span class="prompt-src">live EDGAR</span></button></li>
+        </ul>
+      </section>
     </aside>
 
     <main class="main">
-      <div id="log" class="log">Loading…</div>
+      <div id="log" class="log" aria-live="polite"><p class="block-note">Loading…</p></div>
 
       <form id="ask-form" class="ask-form">
-        <textarea id="question" placeholder="Ask a research question…" rows="2"></textarea>
-        <button type="submit" id="send-btn">Ask</button>
+        <label class="sr-only" for="question">Research question</label>
+        <textarea id="question" placeholder="Ask a research question" rows="1"></textarea>
+        <button type="submit" id="send-btn">Research</button>
       </form>
     </main>
   </div>

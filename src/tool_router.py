@@ -20,6 +20,7 @@ from src.tools.edgar_filings import search_live_filing as _search_live_filing
 from src.tools.edgar_fundamentals import fetch_live_fundamentals as _fetch_live_fundamentals
 from src.tools.filings_search import search_filings as _search_filings
 from src.tools.fundamentals import get_fundamentals
+from src.tools.market_valuation import compute_market_valuation as _compute_market_valuation
 from src.tools.mock_portfolio import load_default_adapter
 from src.tools.peer_compare import compare_peers as _compare_peers
 from src.tools.quotes import get_price_history as _get_price_history
@@ -134,6 +135,17 @@ def get_price_history(ticker: str, period: str = "3mo") -> dict[str, Any]:
     return _get_price_history(ticker, period=period)
 
 
+@traced("fetch_market_valuation")
+def fetch_market_valuation(ticker: str) -> dict[str, Any]:
+    result = _compute_market_valuation(ticker)
+    store = get_default_store()
+    try:
+        store.record_tool_call("fetch_market_valuation", {"ticker": ticker.upper()}, {"as_of": result.get("as_of")})
+    except RuntimeError:
+        pass
+    return result
+
+
 TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "get_portfolio_snapshot": get_portfolio_snapshot,
     "get_holding_detail": get_holding_detail,
@@ -148,6 +160,7 @@ TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "remove_from_watchlist": remove_from_watchlist,
     "get_quote": get_quote,
     "get_price_history": get_price_history,
+    "fetch_market_valuation": fetch_market_valuation,
 }
 
 # Anthropic Messages API tool-use schemas. input_schema follows JSON Schema.
@@ -295,6 +308,22 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "ticker": {"type": "string"},
                 "period": {"type": "string", "description": "1mo, 3mo, 6mo, 1y, 5y, or max.", "default": "3mo"},
             },
+            "required": ["ticker"],
+        },
+    },
+    {
+        "name": "fetch_market_valuation",
+        "description": (
+            "Compute P/E, market cap, and EV/EBITDA for any ticker by combining a live quoted "
+            "price with the latest annual filing figures. Use this when a question turns on "
+            "valuation — fetch_live_fundamentals leaves those fields null by design because a "
+            "multiple can't come from a filing alone. These are market-derived numbers: always "
+            "report them with the price and as-of time they were computed at, never as filing "
+            "facts. Multiples that can't be computed come back null with a stated reason."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"ticker": {"type": "string"}},
             "required": ["ticker"],
         },
     },

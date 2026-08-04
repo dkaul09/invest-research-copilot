@@ -36,6 +36,16 @@ _TAG_ALTERNATES: dict[str, list[str]] = {
     "shares_outstanding": ["CommonStockSharesOutstanding"],
     "long_term_debt": ["LongTermDebtNoncurrent"],
     "short_term_debt": ["DebtCurrent", "LongTermDebtCurrent"],
+    # Depreciation & amortization, for the EBITDA derivation below. The cash
+    # flow statement's combined D&A line is the preferred source; the
+    # narrower tags are fallbacks for filers that split or label it
+    # differently.
+    "depreciation_amortization": [
+        "DepreciationDepletionAndAmortization",
+        "DepreciationAmortizationAndAccretionNet",
+        "DepreciationAndAmortization",
+        "Depreciation",
+    ],
 }
 
 
@@ -106,14 +116,31 @@ def fetch_live_fundamentals(ticker: str) -> dict[str, Any]:
     fundamentals["prior_year_revenue"] = _prior_annual_value(gaap, _TAG_ALTERNATES["revenue"])
     fundamentals["prior_year_eps"] = _prior_annual_value(gaap, _TAG_ALTERNATES["eps"])
 
-    # Not available from XBRL without further assumptions this module refuses
-    # to make: EBITDA (companies don't tag it directly; deriving it requires
-    # picking a D&A tag that isn't consistently reported) and market_cap
-    # (requires a live share price, which is account/market data, not a
-    # filing fact). Left None rather than estimated — pe_ratio and
-    # ev_to_ebitda will be None for live-fetched tickers unless a caller
-    # supplies market_cap separately.
-    fundamentals["ebitda"] = None
+    # EBITDA by its definition: operating income before depreciation and
+    # amortization. Both terms are values the company itself tagged for this
+    # annual period, so the sum is arithmetic over filing facts, not an
+    # estimate. If the filer doesn't report a D&A line this stays None rather
+    # than falling back to operating income alone — that would silently
+    # overstate leverage capacity.
+    d_and_a = fundamentals.pop("depreciation_amortization")
+    if fundamentals["operating_income"] is not None and d_and_a is not None:
+        fundamentals["ebitda"] = fundamentals["operating_income"] + d_and_a
+    else:
+        fundamentals["ebitda"] = None
+    fundamentals["depreciation_amortization"] = d_and_a
+
+    # A cover-page share count is more reliably tagged than the balance-sheet
+    # one, so it backs up whatever CommonStockSharesOutstanding gave us.
+    if fundamentals.get("shares_outstanding") is None:
+        dei = facts.get("facts", {}).get("dei", {})
+        shares, _ = _latest_annual_value(dei, ["EntityCommonStockSharesOutstanding"])
+        fundamentals["shares_outstanding"] = shares
+
+    # market_cap needs a share price, which is market data rather than a
+    # filing fact — this module stays filing-only, so it stays None here and
+    # pe_ratio/ev_to_ebitda stay None in compute_ratios. The separate
+    # fetch_market_valuation tool combines these filing figures with a quoted
+    # price and labels the result as market-derived.
     fundamentals["market_cap"] = None
 
     submissions = get_submissions(cik)

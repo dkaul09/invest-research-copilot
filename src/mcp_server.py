@@ -1,9 +1,9 @@
 """MCP server for the investment research copilot.
 
-Exposes thirteen tools. Eleven are read-only (account/filing data never
+Exposes fourteen tools. Twelve are read-only (account/filing data never
 mutated); two (`add_to_watchlist`, `remove_from_watchlist`) are the one
 deliberate exception — a personal watchlist is a tracking list, not
-account or trade data, so it's fine for it to be genuinely writable. Four
+account or trade data, so it's fine for it to be genuinely writable. Five
 tools reach public network APIs (SEC EDGAR or Yahoo quote data) and are
 annotated openWorldHint=True so a client can see they touch the network.
 
@@ -148,6 +148,20 @@ def get_quote(ticker: str) -> dict[str, Any]:
 def get_price_history(ticker: str, period: str = "3mo") -> dict[str, Any]:
     """Get historical daily closing prices for a ticker, for trend/chart display."""
     return tool_router.get_price_history(ticker, period=period)
+
+
+@mcp.tool(annotations=READ_ONLY_LIVE)
+def fetch_market_valuation(ticker: str) -> dict[str, Any]:
+    """Compute P/E, market cap, and EV/EBITDA from a live price plus filing figures.
+
+    Use when a question turns on valuation: fetch_live_fundamentals leaves
+    those fields null by design, because a multiple can't be computed from a
+    filing alone. Every result is market-derived and carries the price and
+    as-of time it was computed at — report it that way, never as a filing
+    fact. Multiples that can't be computed return null with a stated reason.
+    Read-only.
+    """
+    return tool_router.fetch_market_valuation(ticker)
 
 
 if __name__ == "__main__":

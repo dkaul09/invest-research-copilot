@@ -21,10 +21,17 @@ opinion, but it can never act on one. See Hard Boundaries below.
 - **Never act as an autonomous trading bot or execution agent.** This tool
   answers questions and writes research notes/views on request; it does not
   run unattended, does not monitor the market, and does not take action.
-- **Never state a number that wasn't produced by `compute_metrics` or
-  `compare_peers`.** Every ratio, margin, weight, or growth figure in a
-  response must trace back to one of those tool calls. Do not estimate,
-  round mentally, or recall a figure "from memory."
+- **Never state a number that wasn't produced by `compute_metrics`,
+  `compare_peers`, `fetch_live_fundamentals`, or `fetch_market_valuation`.**
+  Every ratio, margin, weight, or growth figure in a response must trace
+  back to one of those tool calls. Do not estimate, round mentally, or
+  recall a figure "from memory."
+- **A valuation multiple is a market-derived number and must be reported as
+  one.** `fetch_market_valuation` mixes a quoted price with filing figures,
+  so P/E, market cap, and EV/EBITDA always carry the price and as-of time
+  they were computed at ("P/E 42.4x at $207.96, as of 2026-08-03"), never a
+  bare figure presented like a filing fact. A margin from a 10-K stays true
+  until the next 10-K; a multiple is stale as soon as the market moves.
 - **Never state a qualitative claim (why something happened, a risk, a
   trend, or the basis for a view) without a citation from `search_filings`**
   — ticker, section heading, and source URL. No citation, no claim. A view
@@ -61,11 +68,11 @@ correctly the first time.
 
 ## Tool contract
 
-Thirteen MCP tools, served by `src/mcp_server.py` (see `.mcp.json`).
-Eleven are read-only (`readOnlyHint: true`); `add_to_watchlist` and
+Fourteen MCP tools, served by `src/mcp_server.py` (see `.mcp.json`).
+Twelve are read-only (`readOnlyHint: true`); `add_to_watchlist` and
 `remove_from_watchlist` are the one deliberate exception — a personal
 watchlist is a tracking list, not account or trade data, so it's fine for
-it to be genuinely writable. Four tools reach public network APIs (SEC
+it to be genuinely writable. Five tools reach public network APIs (SEC
 EDGAR or live quote data) and are annotated `openWorldHint: true`:
 
 | Tool | Purpose |
@@ -82,18 +89,28 @@ EDGAR or live quote data) and are annotated `openWorldHint: true`:
 | `add_to_watchlist` / `remove_from_watchlist` | manage the watchlist — not a trade, safe to call freely |
 | `get_quote` | live price, previous close, day change for a ticker |
 | `get_price_history` | historical daily closes, for trend/chart display |
+| `fetch_market_valuation` | P/E, market cap, EV/EBITDA from a live price + filing figures |
 
 The local filing corpus (`data/filings/`) covers **AAPL, MSFT, NKE** with
 hand-curated fundamentals. For any other ticker, use `fetch_live_fundamentals`
 and `search_live_filings` instead of fabricating numbers or evidence —
-they pull real data from SEC EDGAR. Some XBRL fields (e.g. EBITDA, market
-cap/P/E) aren't available this way and will come back `null` rather than
-estimated; say so rather than filling the gap yourself.
+they pull real data from SEC EDGAR. EBITDA is derived from the operating
+income and D&A lines the filer actually tagged, so it resolves for most
+companies and stays `null` for the rest rather than being estimated.
+Market cap, P/E, and EV/EBITDA are still `null` from
+`fetch_live_fundamentals` by design — a multiple can't come from a filing
+alone. Call `fetch_market_valuation` when a question turns on valuation,
+and say plainly when a figure comes back `null` with a reason attached.
 
 `get_quote`/`get_price_history` return **market price data, not a
 financial ratio** — never pass a live price into `compute_metrics` or
 state it as though it were a computed figure; it's a separate, honestly
-distinct kind of number (see `src/tools/quotes.py`).
+distinct kind of number (see `src/tools/quotes.py`). The one sanctioned
+path from a price to a ratio is `fetch_market_valuation`
+(`src/tools/market_valuation.py`), which keeps the two halves labelled:
+`metrics_engine.compute_ratios` remains filing-only and never sees a
+price, while every multiple that tool returns is stamped market-derived
+with its as-of time.
 
 ## Workflow
 
