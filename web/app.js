@@ -780,3 +780,87 @@ railToggle.addEventListener("click", () => {
 loadPortfolio();
 loadWatchlist();
 bootstrapChats();
+
+/* ---------- Track record -------------------------------------------------
+ * Every view this desk has stated, lined up against what the price did
+ * afterwards. Direction only, and deliberately unresolved until a call has
+ * had a week to play out — a scoreboard that grades same-day noise would
+ * flatter or damn a view for reasons unrelated to the reasoning.
+ * ---------------------------------------------------------------------- */
+
+const trToggle = document.getElementById("tr-toggle");
+const trPanel = document.getElementById("track-record");
+const trRowsEl = document.getElementById("tr-rows");
+const trSummaryEl = document.getElementById("tr-summary");
+const trAsOfEl = document.getElementById("tr-asof");
+const askForm = document.getElementById("ask-form");
+
+const RATING_MARK = { bullish: "▲", neutral: "■", bearish: "▼" };
+
+function renderTrackRecord(data) {
+  const { total, resolved, correct } = data.summary;
+  trSummaryEl.textContent = total
+    ? `${total} view${total === 1 ? "" : "s"} · ${resolved} resolved · ${correct} correct`
+    : "";
+
+  if (!data.rows.length) {
+    trRowsEl.innerHTML =
+      '<p class="tr-empty">No views recorded yet.<br>' +
+      "Ask for a research note and the view it states gets logged here — dated, " +
+      "priced, and scored once it has had a week to play out.</p>";
+    trAsOfEl.textContent = "";
+    return;
+  }
+
+  trRowsEl.innerHTML = data.rows
+    .slice()
+    .reverse()
+    .map((r) => {
+      const move =
+        r.pct_change === null
+          ? "—"
+          : `${r.pct_change > 0 ? "+" : ""}${r.pct_change}%`;
+      const now = r.current_price === null ? "—" : `$${r.current_price.toFixed(2)}`;
+      const mark = RATING_MARK[r.rating] || "";
+      return `
+        <article class="tr-row tr-${escapeHtml(r.status)}">
+          <span class="tr-ticker">${escapeHtml(r.ticker)}</span>
+          <span class="tr-rating">${mark} ${escapeHtml(r.rating)}</span>
+          <span class="tr-date">${escapeHtml(r.timestamp.slice(0, 10))}</span>
+          <span class="tr-price">$${r.view_price.toFixed(2)} → ${now}</span>
+          <span class="tr-move">${move}</span>
+          <span class="tr-status">${escapeHtml(r.status)}</span>
+        </article>`;
+    })
+    .join("");
+
+  trAsOfEl.textContent =
+    `Prices as of ${data.as_of}. Direction only, scored after seven days. ` +
+    "A record of what was said and what happened next — not a performance claim.";
+}
+
+async function loadTrackRecord() {
+  trRowsEl.innerHTML = '<p class="tr-empty">Loading…</p>';
+  try {
+    const res = await fetch("/api/track-record");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    renderTrackRecord(await res.json());
+  } catch (err) {
+    trRowsEl.innerHTML = `<p class="tr-empty">Could not load the ledger: ${escapeHtml(
+      String(err.message)
+    )}</p>`;
+    trAsOfEl.textContent = "";
+  }
+}
+
+function toggleTrackRecord() {
+  const showing = trPanel.hidden;
+  trPanel.hidden = !showing;
+  log.hidden = showing;
+  askForm.hidden = showing;
+  trToggle.setAttribute("aria-expanded", String(showing));
+  trToggle.textContent = showing ? "Back to desk" : "Track record";
+  if (showing) loadTrackRecord();
+}
+
+trToggle.addEventListener("click", toggleTrackRecord);

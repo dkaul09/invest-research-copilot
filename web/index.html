@@ -25,7 +25,10 @@
       <h1>Research Copilot</h1>
     </div>
 
-    <button id="theme-toggle" class="theme-toggle" type="button">Terminal</button>
+    <div class="masthead-actions">
+      <button id="tr-toggle" class="theme-toggle" type="button" aria-expanded="false" aria-controls="track-record">Track record</button>
+      <button id="theme-toggle" class="theme-toggle" type="button">Terminal</button>
+    </div>
   </header>
 
   <div class="app">
@@ -54,6 +57,18 @@
     </aside>
 
     <main class="main">
+      <section id="track-record" class="track-record" hidden aria-labelledby="tr-heading">
+        <header class="tr-head">
+          <span class="tr-gutter">Record</span>
+          <div>
+            <h2 id="tr-heading">Track record</h2>
+            <p id="tr-summary" class="tr-summary"></p>
+          </div>
+        </header>
+        <div id="tr-rows" class="tr-rows"></div>
+        <p id="tr-asof" class="tr-asof"></p>
+      </section>
+
       <div id="log" class="log" aria-live="polite"><p class="block-note">Loading…</p></div>
 
       <form id="ask-form" class="ask-form">
