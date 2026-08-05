@@ -34,6 +34,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.system_prompt import build_system_prompt
+from backend.view_extract import extract_view
 from src import tool_router
 from src.safety import contains_banned_language
 from src.state import conversations as conversation_store
@@ -90,6 +91,9 @@ def run_research(question: str, history: list[dict[str, Any]] | None = None) -> 
     ]
     messages.append({"role": "user", "content": question})
     tool_calls_made: list[str] = []
+    # Prices actually quoted during this run. A recorded view price must trace
+    # to a real get_quote call, never to the model's recollection.
+    observed_quotes: dict[str, float] = {}
 
     for _ in range(MAX_TOOL_ITERATIONS):
         response = client.messages.create(
@@ -103,7 +107,10 @@ def run_research(question: str, history: list[dict[str, Any]] | None = None) -> 
         if response.stop_reason != "tool_use":
             final_text = "".join(block.text for block in response.content if block.type == "text")
             final_text, blocked = _enforce_safety(client, messages, response, final_text)
-            store.finish_run()
+            view = extract_view(
+                client, final_text, store.current_tool_calls(), observed_quotes, MODEL
+            )
+            store.finish_run(note_text=final_text, view=view)
             return AskResponse(answer=final_text, tool_calls=tool_calls_made, blocked=blocked)
 
         messages.append({"role": "assistant", "content": response.content})
@@ -121,6 +128,18 @@ def run_research(question: str, history: list[dict[str, Any]] | None = None) -> 
                 # EdgarLookupError already does. An uncaught exception here previously
                 # surfaced as a raw 500 to the frontend instead of a graceful answer.
                 result = {"error": f"{block.name} failed: {exc}"}
+
+            # The ledger's tool_calls list was never populated on this path —
+            # only the MCP server recorded provenance. Without this, the view
+            # extractor sees no tickers and every recorded view lands empty.
+            store.record_tool_call(block.name, block.input, _summarize(result))
+
+            if block.name == "get_quote" and isinstance(result, dict):
+                ticker = str(block.input.get("ticker", "")).upper()
+                price = result.get("price")
+                if ticker and isinstance(price, (int, float)):
+                    observed_quotes[ticker] = float(price)
+
             tool_results.append(
                 {"type": "tool_result", "tool_use_id": block.id, "content": _to_text(result)}
             )
@@ -132,6 +151,12 @@ def run_research(question: str, history: list[dict[str, Any]] | None = None) -> 
         tool_calls=tool_calls_made,
         blocked=False,
     )
+
+
+def _summarize(result: Any, limit: int = 400) -> Any:
+    """Compact a tool result for the ledger without storing the whole payload."""
+    text = _to_text(result)
+    return text if len(text) <= limit else text[:limit] + "…"
 
 
 def _to_text(result: Any) -> str:
