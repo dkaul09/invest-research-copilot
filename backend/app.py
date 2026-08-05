@@ -72,6 +72,10 @@ class AskResponse(BaseModel):
     blocked: bool = False
 
 
+# Tools whose result carries a real quoted price we can record a view against.
+PRICE_BEARING_TOOLS = {"get_quote", "fetch_market_valuation"}
+
+
 def run_research(question: str, history: list[dict[str, Any]] | None = None) -> AskResponse:
     """Drive the tool-use loop for one question and return the final note.
 
@@ -134,7 +138,11 @@ def run_research(question: str, history: list[dict[str, Any]] | None = None) -> 
             # extractor sees no tickers and every recorded view lands empty.
             store.record_tool_call(block.name, block.input, _summarize(result))
 
-            if block.name == "get_quote" and isinstance(result, dict):
+            # Both of these return a real quoted price at a known as-of time.
+            # A note that reasons about valuation never calls get_quote, so
+            # harvesting only that one left most views with no recorded price
+            # and silently absent from the track record.
+            if block.name in PRICE_BEARING_TOOLS and isinstance(result, dict):
                 ticker = str(block.input.get("ticker", "")).upper()
                 price = result.get("price")
                 if ticker and isinstance(price, (int, float)):
