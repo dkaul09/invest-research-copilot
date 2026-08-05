@@ -42,6 +42,13 @@ from src.state.session_store import get_default_store
 
 MODEL = "claude-sonnet-5"
 MAX_TOOL_ITERATIONS = 8
+
+# This budget covers the model's thinking blocks *and* the research note it
+# writes. A full-portfolio note (six holdings, a metrics table, citations, and
+# a per-ticker view) plus the reasoning to assemble it does not fit in 4096 —
+# at that cap the thinking block alone consumed the entire budget and the turn
+# ended with zero text blocks, which the loop then returned as an empty answer.
+MAX_RESPONSE_TOKENS = 16384
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
 
 app = FastAPI(title="Investment Research Copilot")
@@ -102,7 +109,7 @@ def run_research(question: str, history: list[dict[str, Any]] | None = None) -> 
     for _ in range(MAX_TOOL_ITERATIONS):
         response = client.messages.create(
             model=MODEL,
-            max_tokens=4096,
+            max_tokens=MAX_RESPONSE_TOKENS,
             system=_system_prompt,
             tools=tool_router.TOOL_SCHEMAS,
             messages=messages,
@@ -110,6 +117,24 @@ def run_research(question: str, history: list[dict[str, Any]] | None = None) -> 
 
         if response.stop_reason != "tool_use":
             final_text = "".join(block.text for block in response.content if block.type == "text")
+
+            # Running out of output tokens is not a finished answer. Without
+            # this, a turn that spent its whole budget thinking returns "" and
+            # the UI renders a note header with no body — the failure looks
+            # like a silent success, which is the worst way for it to fail.
+            if not final_text.strip():
+                reason = (
+                    "the response hit the output token limit before writing anything"
+                    if response.stop_reason == "max_tokens"
+                    else f"the model returned no text (stop_reason: {response.stop_reason})"
+                )
+                store.finish_run()
+                return AskResponse(
+                    answer=f"No answer was produced — {reason}. Try a narrower question.",
+                    tool_calls=tool_calls_made,
+                    blocked=False,
+                )
+
             final_text, blocked = _enforce_safety(client, messages, response, final_text)
             view = extract_view(
                 client, final_text, store.current_tool_calls(), observed_quotes, MODEL
@@ -199,7 +224,7 @@ def _enforce_safety(client: Anthropic, messages: list[dict[str, Any]], response:
         }
     )
     retry = client.messages.create(
-        model=MODEL, max_tokens=4096, system=_system_prompt, messages=messages
+        model=MODEL, max_tokens=MAX_RESPONSE_TOKENS, system=_system_prompt, messages=messages
     )
     retry_text = "".join(block.text for block in retry.content if block.type == "text")
 
