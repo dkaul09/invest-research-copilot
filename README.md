@@ -1,16 +1,48 @@
-# Investment Research Copilot (MVP)
+# Investment Research Copilot
 
-A personal portfolio research assistant built as a Claude Code project.
-Account access is **read-only** by construction — it analyzes your holdings
-and watchlist using deterministic financial metrics and filing-backed
-evidence, and it may state an objective investment view or rating grounded
-in that analysis. What it cannot do, structurally, is place a trade: there
-is no execution-capable tool anywhere in the codebase, so it can have an
-opinion but never act on one.
+I am relatively new to investing, and I wanted something that could give me
+objective information about a company and connect to my own portfolio, rather
+than digging through filings myself for the same handful of numbers every
+time. So I built an agentic RAG copilot that retrieves the financial detail on
+demand and writes it up as a cited research note.
 
-This is a learning tool, not a trading system. Every answer is a research
-note: metrics, citations, risks, open questions, and a stated view — never
-a claim that a trade was actually placed or executed.
+It runs on a local MCP server exposing eighteen tools, fourteen of them
+read-only. A metrics engine computes every ratio in pure Python rather than
+letting the model guess at one; BM25 retrieval over SEC filing excerpts keeps
+every qualitative claim traceable to a cited passage; and a live SEC EDGAR
+adapter pulls real XBRL fundamentals and 10-K text for any ticker, not just a
+curated corpus. The reasoning is done by Claude, driven through the Anthropic
+API with the same system prompt and the same tool contract regardless of which
+interface I use.
+
+Account access is read-only by construction. No tool capable of placing,
+modifying, or cancelling an instruction exists anywhere in the codebase, so
+the copilot can hold an opinion and state a rating, but it can never act on
+one. That boundary is enforced in three independent places: the absence of any
+such tool, a pre-call hook that denies anything execution-shaped, and a
+post-response check that blocks the answer if it ever claims an action was
+taken.
+
+I use it through three interfaces — an MCP client, a FastAPI web chat, and a
+Telegram bot — all sharing one core, so nothing is reimplemented per surface.
+
+**Recent additions.** Every research note now persists to an append-only
+ledger along with the view it stated: the rating, the date, the price it was
+quoted at, and the conditions the note said would change its mind. A **track
+record** page then lines those past calls up against what prices actually did.
+Valuation multiples come from a dedicated tool that combines a quoted price
+with filing figures and stamps each result market-derived with its as-of time,
+because a multiple goes stale the moment the market moves. Recent press
+coverage is available as a citation source, deliberately with no sentiment
+score — a polarity number would look computed while tracing back to nothing.
+A read-only brokerage connection and price-watch conditions are wired in, with
+scheduled delivery of those alerts still to come.
+
+This is a research and learning tool, not a trading system. Every answer is a
+research note: metrics, citations, risks, open questions, what would change
+the view, and the view itself — never a claim that any instruction was
+actually submitted. I started it mainly to get hands-on with agentic AI
+patterns: MCP, skills, hooks, and evals.
 
 ## What it does
 
@@ -65,12 +97,12 @@ python -m evals.run        # eval scorecard
 Three ways to use it, all built on the same tools and the same
 CLAUDE.md/skill rules — nothing is duplicated per interface:
 
-**1. Claude Code (original interface)**
+**1. MCP client (original interface)**
 ```bash
-python -m src.mcp_server   # or just open the repo in Claude Code — .mcp.json registers this automatically
+python -m src.mcp_server   # .mcp.json registers this automatically for any MCP-compatible client
 ```
 `.claude/skills/equity-research/SKILL.md` drives the workflow automatically
-when you ask a research question inside Claude Code.
+when a research question is asked through the MCP client.
 
 **2. Web frontend**
 ```bash
@@ -78,7 +110,7 @@ uvicorn backend.app:app --reload
 ```
 Open `http://localhost:8000`. A FastAPI backend (`backend/app.py`) drives
 the same tools and the same system prompt (CLAUDE.md + the skill) directly
-against the Anthropic API — no Claude Code required. Requires
+against the Anthropic API — no MCP client required. Requires
 `ANTHROPIC_API_KEY` in `.env`.
 
 **3. Telegram bot (backup interface)**
@@ -147,7 +179,7 @@ backend/view_extract.py       pulls the structured view out of a finished note
 src/obs/trace.py              per-tool-call JSONL tracing
 src/safety.py                 shared banned-language check (hook, evals, and backend all use this one copy)
 src/tool_router.py            the eighteen tool implementations, shared by mcp_server.py and backend/app.py
-src/mcp_server.py             MCP surface for Claude Code (wraps tool_router)
+src/mcp_server.py             MCP surface for MCP clients (wraps tool_router)
 backend/app.py                FastAPI backend: Anthropic agent loop for the web + Telegram frontends
 web/                          plain HTML/CSS/JS chat frontend, served by backend/app.py
 telegram_bot.py               Telegram bot, backup interface to the same backend
@@ -180,14 +212,14 @@ never needs a model at all. This project draws the line deliberately:
   scoped to what actually needs enforcing: this tool may state an opinion
   (bullish/neutral/bearish, buy/hold/sell), but it can never *act* on one.
   Tools are read-only by construction (no write method exists to misuse) —
-  true for every interface, since Claude Code, the web backend, and the
-  Telegram bot all call the same eight functions in `src/tool_router.py`.
-  Inside Claude Code, a `PreToolUse` hook hard-denies any tool call shaped
+  true for every interface, since the MCP server, the web backend, and the
+  Telegram bot all call the same eighteen functions in `src/tool_router.py`.
+  In the MCP client, a `PreToolUse` hook hard-denies any tool call shaped
   like order execution, a `Stop` hook blocks the turn if the final response
   claims a trade was actually placed/executed/filled (a fabrication, since
   no tool can do that), and a `UserPromptSubmit` hook warns (never blocks)
   so "should I buy X" gets an actual view, not a canned refusal. Outside
-  Claude Code (web/Telegram), `backend/app.py` runs the same check
+  that client (web/Telegram), `backend/app.py` runs the same check
   (`src/safety.py` — one shared module, not a re-implementation) against
   every final response before it reaches the user, giving the model one
   chance to rewrite before the response is withheld entirely.
