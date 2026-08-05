@@ -160,6 +160,30 @@ every call was right would be the least believable thing on the page.
 The last two are the newer paths: the first records a price condition, the
 second reads the ledger.
 
+## Bring your own API key
+
+A deployed instance should not bill the person hosting it. The web UI has an
+**API key** field in the sidebar: paste an Anthropic key and it is kept in
+that browser's local storage, then sent as an `X-Anthropic-Key` header with
+each question. The backend uses it for that one request and never caches it,
+logs it, or writes it to the ledger.
+
+If no key is supplied, the backend falls back to `ANTHROPIC_API_KEY` from the
+environment, which is what keeps local development and the Telegram bot
+working unchanged.
+
+Practical notes:
+
+- Get a key at [console.anthropic.com](https://console.anthropic.com). A
+  research note runs several tool iterations, so each question costs a few
+  cents on the visitor's own account.
+- A rejected key, an account with no credit, and a rate limit each produce a
+  plain-language message rather than a raw SDK error.
+- Deploy behind HTTPS. The key travels in a request header, so plain HTTP
+  would expose it in transit.
+- The Telegram bot has no key field and uses the server's environment key, so
+  keep `TELEGRAM_ALLOWED_CHAT_ID` set if the host key has credit on it.
+
 ## Using it from Telegram
 
 The Telegram bot is the most useful interface in practice — research notes

@@ -46,6 +46,21 @@
       </section>
 
       <section class="block">
+        <h2 class="block-label">API key</h2>
+        <form id="key-form" class="key-form">
+          <input id="api-key" type="password" placeholder="sk-ant-..." autocomplete="off"
+                 aria-label="Your Anthropic API key" />
+          <button type="submit">Save</button>
+        </form>
+        <p id="key-status" class="block-note"></p>
+        <p class="block-note">
+          Stays in this browser only. Sent with each question so research runs
+          on your own account. Get one at
+          <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>.
+        </p>
+      </section>
+
+      <section class="block">
         <h2 class="block-label">Watchlist</h2>
         <form id="watchlist-form" class="watchlist-form">
           <input id="watchlist-ticker" type="text" placeholder="Add a ticker" maxlength="10" autocomplete="off" aria-label="Ticker to add to watchlist" />

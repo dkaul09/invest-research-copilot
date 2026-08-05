@@ -982,3 +982,13 @@ body {
 .site-footer p:last-child { margin-bottom: 0; }
 .site-footer strong { color: var(--ink-2); }
 .site-footer a { color: var(--ink-2); }
+
+/* ---------- API key form ------------------------------------------------- */
+
+.key-form { display: flex; gap: 0.35rem; margin-bottom: 0.4rem; }
+.key-form input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}

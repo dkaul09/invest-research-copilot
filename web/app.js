@@ -697,7 +697,7 @@ async function ask(question) {
   try {
     const res = await fetch(`/api/conversations/${currentConversationId}/ask`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: askHeaders(),
       body: JSON.stringify({ question }),
     });
     if (!res.ok) {
@@ -864,3 +864,56 @@ function toggleTrackRecord() {
 }
 
 trToggle.addEventListener("click", toggleTrackRecord);
+
+/* ---------- Bring-your-own API key ---------------------------------------
+ * A deployed instance should bill the visitor's own Anthropic account, not
+ * the host's. The key lives in this browser's localStorage and is sent as a
+ * request header per question; the backend uses it for that request and never
+ * persists it. Falls back to the server's own key when no key is entered,
+ * which is what makes local development unchanged.
+ * ---------------------------------------------------------------------- */
+
+const KEY_STORAGE = "anthropicApiKey";
+const keyForm = document.getElementById("key-form");
+const keyInput = document.getElementById("api-key");
+const keyStatus = document.getElementById("key-status");
+
+function storedKey() {
+  try {
+    return localStorage.getItem(KEY_STORAGE) || "";
+  } catch (err) {
+    return "";
+  }
+}
+
+function askHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  const key = storedKey();
+  if (key) headers["X-Anthropic-Key"] = key;
+  return headers;
+}
+
+function renderKeyStatus() {
+  const key = storedKey();
+  if (!key) {
+    keyStatus.textContent = "No key saved. Questions will use the server's key if it has one.";
+    return;
+  }
+  keyStatus.textContent = `Saved: ${key.slice(0, 7)}…${key.slice(-4)}. Clear the field and save to remove.`;
+}
+
+keyForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const value = keyInput.value.trim();
+  try {
+    if (value) localStorage.setItem(KEY_STORAGE, value);
+    else localStorage.removeItem(KEY_STORAGE);
+  } catch (err) {
+    keyStatus.textContent = "This browser is blocking local storage, so the key can't be saved.";
+    return;
+  }
+  keyInput.value = "";
+  renderKeyStatus();
+});
+
+renderKeyStatus();

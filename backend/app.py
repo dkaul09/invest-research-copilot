@@ -29,7 +29,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from anthropic import Anthropic  # noqa: E402
-from fastapi import FastAPI, HTTPException  # noqa: E402
+from fastapi import FastAPI, Header, HTTPException  # noqa: E402
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -56,16 +56,31 @@ _client: Anthropic | None = None
 _system_prompt = build_system_prompt()
 
 
-def get_client() -> Anthropic:
+class MissingApiKey(RuntimeError):
+    """No usable Anthropic key: neither supplied by the caller nor configured."""
+
+
+def get_client(api_key: str | None = None) -> Anthropic:
+    """Return a client for this request.
+
+    A caller-supplied key wins and is never cached, so a deployed instance
+    bills each visitor's own account rather than the host's. The key is used
+    for the duration of one request and never written to disk, the ledger, or
+    the trace log. Falling back to the environment keeps local development
+    and the Telegram bot working unchanged.
+    """
+    if api_key:
+        return Anthropic(api_key=api_key)
+
     global _client
     if _client is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and set your key, "
-                "or export ANTHROPIC_API_KEY before starting the backend."
+        env_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not env_key:
+            raise MissingApiKey(
+                "No Anthropic API key. Either supply one with this request, or set "
+                "ANTHROPIC_API_KEY in .env for local use. Keys are at console.anthropic.com."
             )
-        _client = Anthropic(api_key=api_key)
+        _client = Anthropic(api_key=env_key)
     return _client
 
 
@@ -83,7 +98,11 @@ class AskResponse(BaseModel):
 PRICE_BEARING_TOOLS = {"get_quote", "fetch_market_valuation"}
 
 
-def run_research(question: str, history: list[dict[str, Any]] | None = None) -> AskResponse:
+def run_research(
+    question: str,
+    history: list[dict[str, Any]] | None = None,
+    api_key: str | None = None,
+) -> AskResponse:
     """Drive the tool-use loop for one question and return the final note.
 
     ``history`` is prior turns from the same conversation — [{"role":
@@ -92,7 +111,7 @@ def run_research(question: str, history: list[dict[str, Any]] | None = None) -> 
     without persisting raw tool-use blocks, which would be fragile across
     tool schema changes and unnecessarily large to store.
     """
-    client = get_client()
+    client = get_client(api_key)
     store = get_default_store()
     run_id = str(uuid.uuid4())
     store.start_run(run_id, question)
@@ -237,17 +256,44 @@ def _enforce_safety(client: Anthropic, messages: list[dict[str, Any]], response:
     return retry_text, False
 
 
+def _friendly_error(exc: Exception) -> str:
+    """Turn an SDK exception into something a visitor can act on.
+
+    A wrong or exhausted key is the most likely failure on a deployed
+    instance, and the raw SDK error is a wall of JSON.
+    """
+    text = str(exc)
+    if "authentication_error" in text or "invalid x-api-key" in text:
+        return (
+            "That Anthropic API key was rejected. Check it in the sidebar — keys start "
+            "with 'sk-ant-' and come from console.anthropic.com."
+        )
+    if "credit balance" in text or "billing" in text:
+        return (
+            "That Anthropic account has no available credit, so the request was refused. "
+            "Top it up at console.anthropic.com and try again."
+        )
+    if "rate_limit" in text:
+        return "That account hit its Anthropic rate limit. Wait a moment and try again."
+    return f"Something went wrong answering this question: {exc}"
+
+
 @app.post("/api/ask", response_model=AskResponse)
-def ask(request: AskRequest) -> AskResponse:
+def ask(
+    request: AskRequest,
+    x_anthropic_key: str | None = Header(default=None),
+) -> AskResponse:
     try:
-        return run_research(request.question)
+        return run_research(request.question, api_key=x_anthropic_key)
+    except MissingApiKey as exc:
+        return AskResponse(answer=str(exc), tool_calls=[], blocked=False)
     except Exception as exc:
         # Last line of defense: anything that escapes run_research (e.g. the
         # Anthropic API call itself failing) still returns a normal
         # AskResponse instead of a raw 500, so the frontend always has
         # something sane to render.
         return AskResponse(
-            answer=f"Something went wrong answering this question: {exc}",
+            answer=_friendly_error(exc),
             tool_calls=[],
             blocked=False,
         )
@@ -313,17 +359,23 @@ def delete_conversation(conversation_id: str) -> dict[str, str]:
 
 
 @app.post("/api/conversations/{conversation_id}/ask", response_model=AskResponse)
-def ask_in_conversation(conversation_id: str, request: AskRequest) -> AskResponse:
+def ask_in_conversation(
+    conversation_id: str,
+    request: AskRequest,
+    x_anthropic_key: str | None = Header(default=None),
+) -> AskResponse:
     conversation = conversation_store.get_conversation(conversation_id)
     if conversation is None:
         raise HTTPException(status_code=404, detail="Conversation not found (it may have expired).")
 
     history = [{"role": m["role"], "text": m["text"]} for m in conversation["messages"]]
     try:
-        response = run_research(request.question, history=history)
+        response = run_research(request.question, history=history, api_key=x_anthropic_key)
+    except MissingApiKey as exc:
+        return AskResponse(answer=str(exc), tool_calls=[], blocked=False)
     except Exception as exc:
         response = AskResponse(
-            answer=f"Something went wrong answering this question: {exc}", tool_calls=[], blocked=False
+            answer=_friendly_error(exc), tool_calls=[], blocked=False
         )
 
     conversation_store.append_turn(conversation_id, request.question, response.answer, response.tool_calls)
