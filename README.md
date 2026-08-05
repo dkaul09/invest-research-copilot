@@ -333,14 +333,14 @@ questions about the same ticker don't re-hit the network.
 
 ## Status and feedback
 
-**This project is actively in progress and there will be bugs.** Parts of it
-are deliberately incomplete: the portfolio is a mock account, price-watch
-conditions are recorded but nothing delivers them yet, and the track record
-scores direction only over a seven-day window. Anything labelled sample data
-is sample data.
+This project is actively in progress, so expect bugs. Some parts are
+deliberately incomplete. The portfolio is a mock account rather than live
+brokerage data. Price-watch conditions are recorded but nothing delivers them
+yet. The track record scores direction only, over a seven day window, and
+anything labelled sample data is exactly that.
 
 Nothing here is financial advice. It is a research and learning tool that
-states an objective, sourced view — it cannot and will not act on one.
+states an objective, sourced view, and it cannot act on one.
 
-If you spot a bug, want a change, or have a suggestion or recommendation, I'd
-genuinely like to hear it: **dhruv.kaul@machina.gg**.
+If you find a bug, want something changed, or have a suggestion, I would
+genuinely like to hear it. Email me at dhruv.kaul@usc.edu.
