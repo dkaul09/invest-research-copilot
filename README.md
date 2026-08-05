@@ -124,6 +124,65 @@ core, two interfaces. Create a bot with
 own chat id (the bot prints it back to you if you message it without that
 set) — this bot has no login system, so that's its only access control.
 
+## Trying it out
+
+Everything ships with sample data, so the project is explorable without a
+brokerage account and without spending API credits on the first run.
+
+**Sample portfolio.** `data/portfolio/mock_account.json` is a mock account —
+holdings, cost basis, cash and a watchlist. It is deliberately unbalanced
+(an oversized MSFT position, a losing NKE position) so concentration and
+unrealized-loss questions have something to bite on. This is sample data, not
+a real account.
+
+**Sample track record.** A fresh clone has no research history, so the track
+record page starts empty. To populate it:
+
+```bash
+python scripts/seed_demo_data.py          # add seven dated sample views
+python scripts/seed_demo_data.py --clear  # remove them again
+```
+
+Every seeded row is flagged `"sample": true` in the ledger and its note says
+so on the first line. The outcomes are mixed on purpose — a scoreboard where
+every call was right would be the least believable thing on the page.
+
+**Questions worth asking first:**
+
+- "How much have I invested, and where am I most concentrated?"
+- "Give me a research note on NVDA with its current valuation and a view."
+- "Compare MSFT to AAPL on margins and leverage."
+- "Why did Nike's gross margin move? Cite the filing."
+- "What's the recent press coverage on TSLA?"
+- "Watch NVDA and tell me if it drops 5% below the previous close."
+- "What views have I stated before, and did they hold up?"
+
+The last two are the newer paths: the first records a price condition, the
+second reads the ledger.
+
+## Using it from Telegram
+
+The Telegram bot is the most useful interface in practice — research notes
+arrive on a phone, and it is the surface scheduled price alerts will
+eventually push to.
+
+1. Message [@BotFather](https://t.me/BotFather) and send `/newbot`. Give it a
+   name and a username ending in `bot`. It replies with a token.
+2. Put the token in `.env` as `TELEGRAM_BOT_TOKEN`.
+3. Start it:
+   ```bash
+   python telegram_bot.py
+   ```
+4. Message the bot. If `TELEGRAM_ALLOWED_CHAT_ID` is unset the bot answers
+   anyone who finds it; set it to your own chat id to lock it down. The bot
+   prints your chat id back to you if you message it with that variable set
+   to any other value — that is its only access control, since it has no
+   login system of its own.
+
+It calls the same `run_research()` function as the web backend, so the tools,
+the system prompt, and the safety checks are identical. Long notes are split
+across messages rather than truncated.
+
 ## Demo prompts
 
 - "Analyze my current holdings by quality, leverage, valuation, and concentration."
@@ -269,3 +328,19 @@ questions about the same ticker don't re-hit the network.
   richer eval could add an LLM grader for note *quality* (not just
   structure/traceability), verified against the programmatic checks rather
   than replacing them.
+
+---
+
+## Status and feedback
+
+**This project is actively in progress and there will be bugs.** Parts of it
+are deliberately incomplete: the portfolio is a mock account, price-watch
+conditions are recorded but nothing delivers them yet, and the track record
+scores direction only over a seven-day window. Anything labelled sample data
+is sample data.
+
+Nothing here is financial advice. It is a research and learning tool that
+states an objective, sourced view — it cannot and will not act on one.
+
+If you spot a bug, want a change, or have a suggestion or recommendation, I'd
+genuinely like to hear it: **dhruv.kaul@machina.gg**.

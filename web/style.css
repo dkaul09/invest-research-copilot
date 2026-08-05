@@ -967,3 +967,18 @@ body {
   .tr-head { grid-template-columns: 1fr; gap: 0.25rem; }
   .tr-gutter { padding-top: 0; }
 }
+
+/* ---------- Footer disclaimer -------------------------------------------- */
+
+.site-footer {
+  border-top: 1px solid var(--rule);
+  padding: 1rem 1.25rem 1.5rem;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.6;
+  max-width: 78ch;
+}
+.site-footer p { margin: 0 0 0.5rem; }
+.site-footer p:last-child { margin-bottom: 0; }
+.site-footer strong { color: var(--ink-2); }
+.site-footer a { color: var(--ink-2); }
