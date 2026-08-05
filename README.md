@@ -26,6 +26,31 @@ The assistant:
 2. Computes ratios with pure Python — no LLM-guessed numbers.
 3. Retrieves cited passages from a local corpus of SEC filing excerpts.
 4. Writes a research note with a fixed structure and a self-critique pass.
+5. Records the view that note stated — rating, date, and the price it was
+   quoted at — into an append-only ledger.
+
+### Track record
+
+Because every note states a dated rating into that ledger, the views can be
+lined up afterwards against what prices actually did. The **Track record**
+tab in the web UI shows each past call, the price then and now, and whether
+the direction held.
+
+Scoring is deliberately crude and says so: direction only, unresolved until
+a call is seven days old, and measured against a market price carrying its
+own as-of time. It is a record of what was said and what happened next —
+not a performance claim, and it says nothing about whether the reasoning was
+sound. A general-purpose research tool cannot show you this, because it
+never took a position.
+
+### Price-watch conditions
+
+You can also ask any interface to remember a price condition — *"watch NVDA,
+tell me if it drops 5% below the previous close"* — and it is saved to
+`data/portfolio/alerts.json`. Conditions are **recorded only**: nothing
+checks prices yet, so nothing will notify you. The watcher that evaluates
+them is future work, and every write says so plainly rather than letting a
+saved condition look like an active alarm.
 
 ## Setup
 
@@ -116,9 +141,12 @@ src/adapters/                 PortfolioAdapter contract + future Robinhood stub
 src/tools/                    metrics engine, filings search, peer compare, mock portfolio
 src/tools/edgar_*.py          live SEC EDGAR adapter: CIK lookup, XBRL fundamentals, live filing search
 src/state/                    session ledger + metrics cache
+src/state/track_record.py     scores recorded views against realized price moves
+src/tools/alerts.py           price-watch condition store
+backend/view_extract.py       pulls the structured view out of a finished note
 src/obs/trace.py              per-tool-call JSONL tracing
 src/safety.py                 shared banned-language check (hook, evals, and backend all use this one copy)
-src/tool_router.py            the eight tool implementations, shared by mcp_server.py and backend/app.py
+src/tool_router.py            the eighteen tool implementations, shared by mcp_server.py and backend/app.py
 src/mcp_server.py             MCP surface for Claude Code (wraps tool_router)
 backend/app.py                FastAPI backend: Anthropic agent loop for the web + Telegram frontends
 web/                          plain HTML/CSS/JS chat frontend, served by backend/app.py
@@ -175,8 +203,12 @@ header per SEC's usage policy. For any ticker:
    (`data.sec.gov/api/xbrl/companyfacts/CIK##########.json`) — every number
    is a real value SEC's own XBRL data reports for a specific US-GAAP tag
    on the latest annual filing. Missing tags come back `null`, never
-   estimated. EBITDA and market cap aren't filing facts, so those (and
-   anything derived from them, like EV/EBITDA) are `null` for live tickers.
+   estimated. EBITDA is derived from the operating-income and D&A lines the
+   filer actually tagged, so it resolves for most companies and stays `null`
+   for the rest rather than being estimated. Market cap, P/E and EV/EBITDA
+   stay `null` here by design — a multiple cannot come from a filing alone.
+   `fetch_market_valuation` computes those from a quoted price plus filing
+   figures, and stamps every one of them market-derived with its as-of time.
 3. **Filing text** via the company's actual latest 10-K document
    (fetched from `sec.gov/Archives/edgar/...`), stripped of HTML and
    chunked into overlapping ~200-word windows, then ranked with the same
@@ -192,9 +224,15 @@ questions about the same ticker don't re-hit the network.
   adapter must satisfy. Not implemented; raises `NotImplementedError`. This
   is unrelated to the EDGAR adapter above — brokerage/account access is a
   separate, still-future integration.
-- **EBITDA / market cap for live tickers** — would require picking a D&A
-  tag (inconsistently reported across filers) or a live market-data source;
-  deliberately left `null` rather than estimated.
+- **The alert watcher** — price-watch conditions are recorded today but
+  nothing evaluates them. The watcher, sustain windows, cooldowns, quiet
+  hours, notification tiers and Telegram push are specified in
+  `docs/superpowers/specs/2026-08-04-price-alerts-design.md`. It needs a
+  narrow amendment to CLAUDE.md first: the project currently promises it
+  "does not monitor the market", which a scheduled poller would break.
+- **Calibration scoring** — the ledger now holds dated ratings and the
+  conditions each note said would change it, which is the substrate for
+  scoring reasoning quality rather than just direction.
 - **LLM-judge eval stage** — the current eval is entirely programmatic. A
   richer eval could add an LLM grader for note *quality* (not just
   structure/traceability), verified against the programmatic checks rather
