@@ -343,4 +343,4 @@ Nothing here is financial advice. It is a research and learning tool that
 states an objective, sourced view, and it cannot act on one.
 
 If you find a bug, want something changed, or have a suggestion, I would
-genuinely like to hear it. Email me at dhruv.kaul@usc.edu.
+genuinely like to hear it. Email me at dhruv.kau@usc.edu.
