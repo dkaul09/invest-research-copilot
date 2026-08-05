@@ -26,6 +26,9 @@ from src.tools.news import fetch_recent_news as _fetch_recent_news
 from src.tools.peer_compare import compare_peers as _compare_peers
 from src.tools.quotes import get_price_history as _get_price_history
 from src.tools.quotes import get_quote as _get_quote
+from src.tools.alerts import add_price_alert as _add_price_alert
+from src.tools.alerts import list_price_alerts as _list_price_alerts
+from src.tools.alerts import remove_price_alert as _remove_price_alert
 from src.tools.watchlist import add_to_watchlist as _add_to_watchlist
 from src.tools.watchlist import get_watchlist as _get_watchlist
 from src.tools.watchlist import remove_from_watchlist as _remove_from_watchlist
@@ -126,6 +129,23 @@ def remove_from_watchlist(ticker: str) -> list[dict[str, Any]]:
     return _remove_from_watchlist(ticker)
 
 
+@traced("add_price_alert")
+def add_price_alert(
+    ticker: str, direction: str, pct: float, baseline: str = "prev_close"
+) -> dict[str, Any]:
+    return _add_price_alert(ticker, direction, pct, baseline=baseline)
+
+
+@traced("list_price_alerts")
+def list_price_alerts() -> dict[str, Any]:
+    return _list_price_alerts()
+
+
+@traced("remove_price_alert")
+def remove_price_alert(alert_id: str) -> dict[str, Any]:
+    return _remove_price_alert(alert_id)
+
+
 @traced("get_quote")
 def get_quote(ticker: str) -> dict[str, Any]:
     return _get_quote(ticker)
@@ -178,6 +198,9 @@ TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "get_price_history": get_price_history,
     "fetch_market_valuation": fetch_market_valuation,
     "fetch_recent_news": fetch_recent_news,
+    "add_price_alert": add_price_alert,
+    "list_price_alerts": list_price_alerts,
+    "remove_price_alert": remove_price_alert,
 }
 
 # Anthropic Messages API tool-use schemas. input_schema follows JSON Schema.
@@ -293,6 +316,46 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "sector": {"type": "string", "description": "Optional sector label."},
             },
             "required": ["ticker"],
+        },
+    },
+    {
+        "name": "add_price_alert",
+        "description": (
+            "Record a price condition the user wants to be notified about later "
+            "(e.g. NVDA down 5% from the previous close). This saves the condition "
+            "only \u2014 nothing checks prices yet, so say plainly that delivery is not "
+            "wired up. Not an execution path: this project cannot act on a price."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string"},
+                "direction": {"type": "string", "enum": ["down", "up"]},
+                "pct": {"type": "number", "description": "Percent move, e.g. 5 for 5%."},
+                "baseline": {
+                    "type": "string",
+                    "enum": ["prev_close", "7d", "30d", "view_price"],
+                    "description": (
+                        "What the move is measured against. 'view_price' means the price "
+                        "when the user last recorded a view on this ticker."
+                    ),
+                },
+            },
+            "required": ["ticker", "direction", "pct"],
+        },
+    },
+    {
+        "name": "list_price_alerts",
+        "description": "List the user's saved price-watch conditions.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "remove_price_alert",
+        "description": "Delete a saved price-watch condition by its id.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"alert_id": {"type": "string"}},
+            "required": ["alert_id"],
         },
     },
     {

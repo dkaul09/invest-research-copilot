@@ -53,6 +53,12 @@ opinion, but it can never act on one. See Hard Boundaries below.
   future adapter must satisfy. This is unrelated to and separate from the
   live EDGAR adapter below — EDGAR is public filing data, never account or
   brokerage data.
+- The **price-watch store** (`src/tools/alerts.py`,
+  `data/portfolio/alerts.json`) is writable for the same reason the
+  watchlist is: a condition you want to be told about is a personal to-do.
+  It records conditions only — nothing evaluates or delivers them yet, and
+  a saved condition must never be described as an active alarm. Nothing in
+  it can act.
 - The **personal watchlist** (`src/tools/watchlist.py`,
   `data/portfolio/watchlist.json`) is the one deliberate exception to
   read-only: adding/removing a ticker you're tracking isn't a trade, so
@@ -79,9 +85,10 @@ correctly the first time.
 
 ## Tool contract
 
-Fifteen MCP tools, served by `src/mcp_server.py` (see `.mcp.json`).
-Thirteen are read-only (`readOnlyHint: true`); `add_to_watchlist` and
-`remove_from_watchlist` are the one deliberate exception — a personal
+Eighteen MCP tools, served by `src/mcp_server.py` (see `.mcp.json`).
+Fourteen are read-only (`readOnlyHint: true`); `add_to_watchlist`,
+`remove_from_watchlist`, `add_price_alert` and `remove_price_alert` are the
+deliberate exceptions — a personal
 watchlist is a tracking list, not account or trade data, so it's fine for
 it to be genuinely writable. Six tools reach public network APIs (SEC
 EDGAR, live quote data, or the news feed) and are annotated
@@ -103,6 +110,7 @@ EDGAR, live quote data, or the news feed) and are annotated
 | `get_price_history` | historical daily closes, for trend/chart display |
 | `fetch_market_valuation` | P/E, market cap, EV/EBITDA from a live price + filing figures |
 | `fetch_recent_news` | recent press coverage — headline, publisher, URL, date; a citation source, never a number source |
+| `add_price_alert` / `list_price_alerts` / `remove_price_alert` | record price conditions to be notified about later — saved only, nothing checks prices yet |
 
 The local filing corpus (`data/filings/`) covers **AAPL, MSFT, NKE** with
 hand-curated fundamentals. For any other ticker, use `fetch_live_fundamentals`

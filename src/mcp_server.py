@@ -1,10 +1,11 @@
 """MCP server for the investment research copilot.
 
-Exposes fourteen tools. Twelve are read-only (account/filing data never
-mutated); two (`add_to_watchlist`, `remove_from_watchlist`) are the one
-deliberate exception — a personal watchlist is a tracking list, not
-account or trade data, so it's fine for it to be genuinely writable. Five
-tools reach public network APIs (SEC EDGAR or Yahoo quote data) and are
+Exposes eighteen tools. Fourteen are read-only (account/filing data never
+mutated); four (`add_to_watchlist`, `remove_from_watchlist`,
+`add_price_alert`, `remove_price_alert`) are the deliberate exceptions — a personal watchlist is a tracking list, not
+account or trade data, so it's fine for them to be genuinely writable, and
+neither can act on anything. Six tools reach public network APIs (SEC
+EDGAR, live quote data, or the news feed) and are
 annotated openWorldHint=True so a client can see they touch the network.
 
 All real logic lives in ``src/tool_router.py``, shared with the FastAPI
@@ -132,6 +133,33 @@ def add_to_watchlist(ticker: str, sector: str = "") -> list[dict[str, Any]]:
 def remove_from_watchlist(ticker: str) -> list[dict[str, Any]]:
     """Remove a ticker from the personal watchlist."""
     return tool_router.remove_from_watchlist(ticker)
+
+
+@mcp.tool(annotations=WATCHLIST_WRITE)
+def add_price_alert(
+    ticker: str, direction: str, pct: float, baseline: str = "prev_close"
+) -> dict[str, Any]:
+    """Record a price condition the user wants to be notified about later.
+
+    Saves the condition only — nothing checks prices yet, so say plainly that
+    delivery is not wired up. Not an execution path: this project cannot act
+    on a price. ``direction`` is "down" or "up"; ``baseline`` is one of
+    "prev_close", "7d", "30d", or "view_price" (the price when the user last
+    recorded a view on this ticker).
+    """
+    return tool_router.add_price_alert(ticker, direction, pct, baseline=baseline)
+
+
+@mcp.tool(annotations=READ_ONLY)
+def list_price_alerts() -> dict[str, Any]:
+    """List the user's saved price-watch conditions."""
+    return tool_router.list_price_alerts()
+
+
+@mcp.tool(annotations=WATCHLIST_WRITE)
+def remove_price_alert(alert_id: str) -> dict[str, Any]:
+    """Delete a saved price-watch condition by its id."""
+    return tool_router.remove_price_alert(alert_id)
 
 
 @mcp.tool(annotations=READ_ONLY_LIVE)
