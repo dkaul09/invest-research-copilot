@@ -225,6 +225,34 @@ def portfolio() -> dict[str, Any]:
     return tool_router.get_portfolio_snapshot()
 
 
+@app.get("/api/track-record")
+def track_record() -> dict[str, Any]:
+    """Every view this copilot has stated, scored against what happened next."""
+    from datetime import datetime, timezone
+
+    from src.state.track_record import score_views
+    from src.tools.quotes import get_quote
+
+    store = get_default_store()
+    views = store.recorded_views()
+
+    tickers = {t for r in views for t in (r.get("view") or {}).get("view_price", {})}
+    prices: dict[str, float] = {}
+    for ticker in sorted(tickers):
+        try:
+            quote = get_quote(ticker)
+        except Exception:
+            # A quote failure degrades that row to "pending", never a 500.
+            continue
+        if isinstance(quote.get("price"), (int, float)):
+            prices[ticker] = float(quote["price"])
+
+    now = datetime.now(timezone.utc)
+    payload = score_views(views, prices, now)
+    payload["as_of"] = now.isoformat(timespec="seconds").replace("+00:00", "Z")
+    return payload
+
+
 @app.post("/api/conversations")
 def create_conversation() -> dict[str, Any]:
     return conversation_store.create_conversation()
