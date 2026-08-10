@@ -992,3 +992,50 @@ body {
   font-family: var(--font-mono);
   font-size: 11px;
 }
+
+
+/* ------------------------------------------------------------ live account */
+/* Real brokerage positions. Read-only: this panel shows what is held and
+   what it is worth, and there is deliberately no control here that could
+   act on the account. */
+
+.live-account {
+  border: 1px solid var(--rule, #333);
+  padding: 0.9rem 1rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.live-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.live-head h2 { margin: 0; font-size: 1rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.live-sub { margin: 0.25rem 0 0; font-size: 0.78rem; opacity: 0.75; }
+.live-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.live-total {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin: 0.85rem 0 0.6rem;
+  align-items: baseline;
+}
+.live-total .amount { font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.live-total .meta { font-size: 0.78rem; opacity: 0.75; }
+
+.live-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.live-table th, .live-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--rule, #2a2a2a); }
+.live-table th { text-align: left; font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.7; }
+.live-table td.num, .live-table th.num { text-align: right; }
+.live-table td.tkr { font-weight: 600; }
+.live-table tbody tr:last-child td { border-bottom: none; }
+.live-spark { vertical-align: middle; }
+.live-note { font-size: 0.75rem; opacity: 0.7; margin: 0.6rem 0 0; }
+.live-locked { font-size: 0.68rem; opacity: 0.65; display: block; }
+
+/* Overflow guard: a narrow window must scroll the table, not the page. */
+.live-body { overflow-x: auto; }

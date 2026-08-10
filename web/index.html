@@ -84,6 +84,21 @@
         <p id="tr-asof" class="tr-asof"></p>
       </section>
 
+      <section id="live-account" class="live-account" aria-labelledby="live-heading">
+        <header class="live-head">
+          <div>
+            <h2 id="live-heading">Live account</h2>
+            <p id="live-sub" class="live-sub">Checking connection…</p>
+          </div>
+          <div class="live-actions">
+            <button id="live-refresh" class="theme-toggle" type="button" hidden>Refresh</button>
+            <button id="live-connect" class="theme-toggle" type="button" hidden>Connect Robinhood</button>
+            <button id="live-disconnect" class="theme-toggle" type="button" hidden>Disconnect</button>
+          </div>
+        </header>
+        <div id="live-body" class="live-body"></div>
+      </section>
+
       <div id="log" class="log" aria-live="polite"><p class="block-note">Loading…</p></div>
 
       <form id="ask-form" class="ask-form">
@@ -96,10 +111,12 @@
 
   <footer class="site-footer">
     <p>
-      <strong>In progress, so expect bugs.</strong> The portfolio is a mock
-      account, price-watch conditions are recorded but not delivered yet, and
-      anything marked sample data is exactly that. Nothing here is financial
-      advice. This states a sourced view and cannot act on one.
+      <strong>In progress, so expect bugs.</strong> The research portfolio in
+      the sidebar is a mock account; the Live account panel shows your real
+      brokerage positions, read-only, and only once you connect it.
+      Price-watch conditions are recorded but not delivered yet, and anything
+      marked sample data is exactly that. Nothing here is financial advice.
+      This states a sourced view and cannot act on one.
     </p>
     <p>
       Suggestions and bug reports are welcome at

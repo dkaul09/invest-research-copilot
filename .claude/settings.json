@@ -1,4 +1,27 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"renderPortfolio\\\\|/api/portfolio\\\\|function fmt\\\\|const \\\\$\\\\|async function load\" web/app.js)",
+      "Bash(timeout 300 python3 -m pytest -q)"
+    ],
+    "deny": [
+      "Bash(*robin_stocks*)",
+      "Bash(*ally_invest*)",
+      "Bash(*td_ameritrade*)",
+      "Bash(*alpaca-trade-api*)",
+      "Bash(*place_order*)",
+      "Bash(*submit_order*)",
+      "Bash(*cancel_order*)",
+      "mcp__robinhood-trading__place_equity_order",
+      "mcp__robinhood-trading__place_option_order",
+      "mcp__robinhood-trading__cancel_equity_order",
+      "mcp__robinhood-trading__cancel_option_order",
+      "mcp__robinhood-trading__exercise_option",
+      "mcp__robinhood-trading__cancel_option_exercise",
+      "mcp__robinhood-trading__review_equity_order",
+      "mcp__robinhood-trading__review_option_order"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -30,25 +53,6 @@
           }
         ]
       }
-    ]
-  },
-  "permissions": {
-    "deny": [
-      "Bash(*robin_stocks*)",
-      "Bash(*ally_invest*)",
-      "Bash(*td_ameritrade*)",
-      "Bash(*alpaca-trade-api*)",
-      "Bash(*place_order*)",
-      "Bash(*submit_order*)",
-      "Bash(*cancel_order*)",
-      "mcp__robinhood-trading__place_equity_order",
-      "mcp__robinhood-trading__place_option_order",
-      "mcp__robinhood-trading__cancel_equity_order",
-      "mcp__robinhood-trading__cancel_option_order",
-      "mcp__robinhood-trading__exercise_option",
-      "mcp__robinhood-trading__cancel_option_exercise",
-      "mcp__robinhood-trading__review_equity_order",
-      "mcp__robinhood-trading__review_option_order"
     ]
   }
 }

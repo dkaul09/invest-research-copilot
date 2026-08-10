@@ -32,3 +32,4 @@ venv/
 .pytest_cache/
 *.egg-info/
 data/notes/
+data/portfolio/.rh_token.json

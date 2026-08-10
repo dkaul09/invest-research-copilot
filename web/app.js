@@ -779,6 +779,184 @@ railToggle.addEventListener("click", () => {
 
 loadPortfolio();
 loadWatchlist();
+
+
+/* ------------------------------------------------------------ live account */
+/* The user's real brokerage positions, read-only. Note what this panel has
+   no control for: anything that would act on the account. It shows what is
+   held, what it is worth, and how it has moved — nothing else. */
+
+const liveSub = document.getElementById("live-sub");
+const liveBody = document.getElementById("live-body");
+const liveConnectBtn = document.getElementById("live-connect");
+const liveDisconnectBtn = document.getElementById("live-disconnect");
+const liveRefreshBtn = document.getElementById("live-refresh");
+
+const money = (v) =>
+  v == null
+    ? "—"
+    : v.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+
+const signedMoney = (v) => (v == null ? "—" : (v >= 0 ? "+" : "") + money(v));
+const pct = (v) => (v == null ? "—" : (v >= 0 ? "+" : "") + (v * 100).toFixed(2) + "%");
+
+// Shares are fractional here, so a fixed 2dp would render 0.035077 as 0.04
+// and imply a position the user does not hold.
+const shares = (v) =>
+  v == null ? "—" : v.toLocaleString(undefined, { maximumFractionDigits: 6 });
+
+function setLiveButtons({ connected }) {
+  liveConnectBtn.hidden = connected;
+  liveDisconnectBtn.hidden = !connected;
+  liveRefreshBtn.hidden = !connected;
+}
+
+async function loadLiveAccount() {
+  let status;
+  try {
+    status = await (await fetch("/api/live/status")).json();
+  } catch (err) {
+    liveSub.textContent = "Backend unavailable.";
+    liveBody.innerHTML = "";
+    return;
+  }
+
+  setLiveButtons(status);
+
+  if (!status.connected) {
+    liveSub.textContent = "Not connected.";
+    liveBody.innerHTML = `<p class="live-note">
+      Connect a Robinhood account to see your real positions and prices here.
+      This dashboard only ever reads: it is limited to
+      <code>${(status.read_only_tools || []).join("</code>, <code>")}</code>,
+      and has no ability to act on the account.</p>`;
+    return;
+  }
+
+  liveSub.textContent = "Loading positions…";
+  let data;
+  try {
+    const res = await fetch("/api/live/portfolio");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      liveSub.textContent = "Could not load positions.";
+      liveBody.innerHTML = `<p class="live-note">${body.detail || res.statusText}</p>`;
+      return;
+    }
+    data = await res.json();
+  } catch (err) {
+    liveSub.textContent = "Could not reach the backend.";
+    liveBody.innerHTML = "";
+    return;
+  }
+
+  renderLiveAccount(data);
+  loadLiveSparklines(data.holdings.map((h) => h.ticker));
+}
+
+function renderLiveAccount(data) {
+  const masked = "••••" + String(data.account_id || "").slice(-4);
+  const label = data.account_nickname ? `${data.account_nickname} ${masked}` : masked;
+  const asOf = data.as_of ? new Date(data.as_of).toLocaleTimeString() : "";
+  liveSub.textContent = `${label} · prices as of ${asOf}`;
+
+  const totalCost = data.holdings.reduce(
+    (sum, h) =>
+      h.cost_basis_per_share != null ? sum + h.cost_basis_per_share * h.shares : sum,
+    0
+  );
+  const totalPl = data.holdings.reduce(
+    (sum, h) => (h.unrealized_pl != null ? sum + h.unrealized_pl : sum),
+    0
+  );
+  const totalPlPct = totalCost ? totalPl / totalCost : null;
+
+  const rows = data.holdings
+    .map((h) => {
+      const plClass = (h.unrealized_pl ?? 0) >= 0 ? "pl-pos" : "pl-neg";
+      const locked =
+        h.shares_held_for_grants > 0
+          ? `<span class="live-locked">${shares(h.shares_held_for_grants)} held for grants</span>`
+          : "";
+      return `<tr>
+        <td class="tkr">${h.ticker}${locked}</td>
+        <td class="num" id="spark-${h.ticker}"></td>
+        <td class="num">${shares(h.shares)}</td>
+        <td class="num">${money(h.current_price)}</td>
+        <td class="num">${money(h.market_value)}</td>
+        <td class="num">${h.weight != null ? (h.weight * 100).toFixed(1) + "%" : "—"}</td>
+        <td class="num">${money(h.cost_basis_per_share)}</td>
+        <td class="num ${plClass}">${signedMoney(h.unrealized_pl)} <small>${pct(h.unrealized_pl_pct)}</small></td>
+      </tr>`;
+    })
+    .join("");
+
+  const plClass = totalPl >= 0 ? "pl-pos" : "pl-neg";
+  liveBody.innerHTML = `
+    <div class="live-total">
+      <span class="amount">${money(data.total_portfolio_value)}</span>
+      <span class="meta ${plClass}">${signedMoney(totalPl)} (${pct(totalPlPct)}) unrealized</span>
+      <span class="meta">Cash ${money(data.cash)}</span>
+      <span class="meta">Buying power ${money(data.buying_power)}</span>
+    </div>
+    <table class="live-table">
+      <thead><tr>
+        <th>Ticker</th><th class="num">30d</th><th class="num">Shares</th><th class="num">Price</th>
+        <th class="num">Value</th><th class="num">Weight</th><th class="num">Avg cost</th><th class="num">Unrealized</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="live-note">Read-only. This dashboard can show your account and cannot act on it.${
+      data.agentic_allowed === false
+        ? " Robinhood also reports this account as not agent-accessible."
+        : ""
+    }</p>`;
+}
+
+// Sparklines load after the table so a slow price-history call never delays
+// the numbers the user actually came for.
+async function loadLiveSparklines(tickers) {
+  await Promise.all(
+    tickers.map(async (ticker) => {
+      const cell = document.getElementById(`spark-${ticker}`);
+      if (!cell) return;
+      try {
+        const res = await fetch(`/api/price-history/${encodeURIComponent(ticker)}?period=1mo`);
+        const data = await res.json();
+        const points = data.points || [];
+        if (points.length < 2) return;
+        const up = points[points.length - 1].close >= points[0].close;
+        cell.innerHTML = renderSparkline(points, up);
+      } catch (err) {
+        /* a missing sparkline is cosmetic — leave the cell empty */
+      }
+    })
+  );
+}
+
+liveConnectBtn.addEventListener("click", async () => {
+  liveConnectBtn.disabled = true;
+  try {
+    const res = await fetch("/api/live/connect");
+    const data = await res.json();
+    if (data.authorization_url) window.location.href = data.authorization_url;
+    else liveSub.textContent = data.detail || "Could not start the connection.";
+  } catch (err) {
+    liveSub.textContent = "Could not start the connection.";
+  } finally {
+    liveConnectBtn.disabled = false;
+  }
+});
+
+liveDisconnectBtn.addEventListener("click", async () => {
+  await fetch("/api/live/disconnect", { method: "POST" });
+  loadLiveAccount();
+});
+
+liveRefreshBtn.addEventListener("click", () => loadLiveAccount());
+
+loadLiveAccount();
+
 bootstrapChats();
 
 /* ---------- Track record -------------------------------------------------

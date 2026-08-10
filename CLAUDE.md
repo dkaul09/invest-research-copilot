@@ -178,8 +178,27 @@ forecast is not.
 ## Data sources (MVP)
 
 - Portfolio/account: `data/portfolio/mock_account.json` — a mock account,
-  not live Robinhood data. Never read or write `data/portfolio/live_*.json`
-  (gitignored; reserved for a future real adapter).
+  used by every research tool. Never read or write
+  `data/portfolio/live_*.json` (gitignored).
+- Live brokerage account: **read-only, and opt-in.** `src/adapters/`
+  `rh_oauth.py` + `rh_mcp_client.py` + `robinhood_live.py` connect the
+  dashboard to Robinhood's agent MCP endpoint over OAuth 2.1 (dynamic
+  registration, PKCE, refresh tokens; no password reaches this backend).
+  Tokens live in `data/portfolio/.rh_token.json`, gitignored and written
+  `0600`. This powers the dashboard's Live account panel only — the
+  research tools still read the mock fixture.
+
+  **Read the deviation before touching this.** `adapters/base.py` requires
+  brokerage credentials be scoped read-only *at the provider*. Robinhood
+  publishes exactly one scope, `internal`, so that is not achievable: the
+  token is full-power. The guarantee is reconstructed in
+  `rh_mcp_client.py` by an **allowlist** of four read tools
+  (`get_accounts`, `get_portfolio`, `get_equity_positions`,
+  `get_equity_quotes`), with no caller-supplied tool name reachable from
+  any HTTP route. It is an allowlist, not a denylist, because a denylist
+  fails open the moment the remote server adds a tool. Adding a fifth tool
+  is a security decision. The one provider-side guarantee is that the
+  default account reports `agentic_allowed: false`.
 - Filings: `data/filings/*.md` — real excerpted 10-K sections with YAML
   front matter (ticker, fiscal year, source URL, fundamentals), chunked and
   searched via deterministic BM25 (`src/tools/filings_search.py`). Covers

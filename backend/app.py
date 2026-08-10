@@ -30,12 +30,14 @@ load_dotenv()
 
 from anthropic import Anthropic  # noqa: E402
 from fastapi import FastAPI, Header, HTTPException  # noqa: E402
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.system_prompt import build_system_prompt
 from backend.view_extract import extract_view
 from src import tool_router
+from src.adapters import rh_mcp_client
 from src.safety import contains_banned_language
 from src.state import conversations as conversation_store
 from src.state.session_store import get_default_store
@@ -415,4 +417,91 @@ def watchlist_remove(ticker: str) -> list[dict[str, Any]]:
 # Registered after the /api/* routes above: explicit path operations are
 # matched first, so this catch-all mount only ever serves the static
 # frontend (and index.html for "/") without shadowing the API.
+# ---------------------------------------------------------------------------
+# Live brokerage account (read-only)
+#
+# These routes let the dashboard show the user's real Robinhood positions.
+# Everything below reads; nothing acts. The read-only guarantee is enforced
+# in src/adapters/rh_mcp_client.py by an allowlist of four tools, because
+# Robinhood publishes no read-only OAuth scope to enforce it at the
+# provider — see that module's docstring for the full reasoning.
+#
+# No route here ever returns a token, and no route accepts a tool name from
+# the caller.
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/live/status")
+def live_status() -> dict[str, Any]:
+    """Whether the dashboard is connected to a brokerage account."""
+    from src.adapters import rh_oauth
+
+    status = rh_oauth.connection_status()
+    status["read_only_tools"] = sorted(rh_mcp_client.READ_ONLY_TOOLS)
+    return status
+
+
+@app.get("/api/live/connect")
+def live_connect() -> dict[str, Any]:
+    """Return the Robinhood URL the user opens to authorize the dashboard."""
+    from src.adapters import rh_oauth
+
+    try:
+        return {"authorization_url": rh_oauth.build_authorization_url()}
+    except rh_oauth.RobinhoodAuthError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/live/callback")
+def live_callback(code: str = "", state: str = "", error: str = "") -> HTMLResponse:
+    """Complete the OAuth exchange, then hand the browser back to the dashboard."""
+    from src.adapters import rh_oauth
+
+    if error:
+        message = f"Robinhood returned an error: {error}"
+    elif not code:
+        message = "Robinhood did not return an authorization code."
+    else:
+        try:
+            rh_oauth.complete_authorization(code, state)
+            message = ""
+        except rh_oauth.RobinhoodAuthError as exc:
+            message = str(exc)
+
+    if message:
+        body = f"<h2>Could not connect</h2><p>{message}</p><p><a href='/'>Back</a></p>"
+    else:
+        body = "<h2>Connected</h2><p>Returning to your dashboard…</p><script>location.replace('/')</script>"
+    return HTMLResponse(f"<html><body style='font-family:system-ui;padding:2rem'>{body}</body></html>")
+
+
+@app.post("/api/live/disconnect")
+def live_disconnect() -> dict[str, str]:
+    """Forget the stored credentials."""
+    from src.adapters import rh_oauth
+
+    rh_oauth.disconnect()
+    return {"status": "disconnected"}
+
+
+@app.get("/api/live/portfolio")
+def live_portfolio() -> dict[str, Any]:
+    """The user's real positions, values, weights, and unrealized P/L."""
+    from src.adapters.rh_oauth import RobinhoodAuthError
+    from src.adapters.robinhood_live import RobinhoodLiveAdapter
+
+    try:
+        return RobinhoodLiveAdapter().get_snapshot()
+    except RobinhoodAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except rh_mcp_client.RobinhoodMCPError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/price-history/{ticker}")
+def price_history(ticker: str, period: str = "3mo") -> dict[str, Any]:
+    """Daily closes for a ticker, for the dashboard sparklines."""
+    return tool_router.get_price_history(ticker, period=period)
+
+
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
