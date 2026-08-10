@@ -19,6 +19,10 @@ from src.tools.edgar_client import EdgarLookupError
 from src.tools.edgar_filings import search_live_filing as _search_live_filing
 from src.tools.edgar_fundamentals import fetch_live_fundamentals as _fetch_live_fundamentals
 from src.tools.filings_search import search_filings as _search_filings
+from src.tools.fund_compare import compare_funds as _compare_funds
+from src.tools.fund_filings import search_fund_filings as _search_fund_filings
+from src.tools.fund_overlap import compute_fund_overlap as _compute_fund_overlap
+from src.tools.fund_profile import get_fund_profile as _get_fund_profile
 from src.tools.fundamentals import get_fundamentals
 from src.tools.market_valuation import compute_market_valuation as _compute_market_valuation
 from src.tools.mock_portfolio import load_default_adapter
@@ -182,6 +186,62 @@ def fetch_recent_news(ticker: str, limit: int = 8) -> dict[str, Any]:
     return result
 
 
+@traced("get_fund_profile")
+def get_fund_profile(ticker: str) -> dict[str, Any]:
+    result = _get_fund_profile(ticker)
+    store = get_default_store()
+    try:
+        store.record_tool_call(
+            "get_fund_profile",
+            {"ticker": ticker.upper()},
+            {"status": result.get("status"), "as_of": result.get("as_of")},
+        )
+    except RuntimeError:
+        pass
+    return result
+
+
+@traced("search_fund_filings")
+def search_fund_filings(ticker: str, query: str, top_k: int = 3) -> dict[str, Any]:
+    result = _search_fund_filings(ticker, query, top_k=top_k)
+    if result.get("status") != "ok":
+        return result
+
+    store = get_default_store()
+    for hit in result.get("results", []):
+        try:
+            store.record_citation(
+                result["fund"]["ticker"], f"{hit.get('form', '')} excerpt", hit.get("source_url", "")
+            )
+        except RuntimeError:
+            break
+    return result
+
+
+@traced("compare_funds")
+def compare_funds(tickers: list[str]) -> dict[str, Any]:
+    return _compare_funds(tickers)
+
+
+@traced("compute_fund_overlap")
+def compute_fund_overlap(ticker: str) -> dict[str, Any]:
+    result = _compute_fund_overlap(ticker)
+    store = get_default_store()
+    try:
+        store.record_tool_call(
+            "compute_fund_overlap",
+            {"ticker": ticker.upper()},
+            {
+                "status": result.get("status"),
+                "overlap_weight_of_fund": result.get("overlap_weight_of_fund"),
+                "fund_holdings_as_of": result.get("inputs_used", {}).get("fund_holdings_as_of"),
+            },
+        )
+    except RuntimeError:
+        pass
+    return result
+
+
 TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "get_portfolio_snapshot": get_portfolio_snapshot,
     "get_holding_detail": get_holding_detail,
@@ -201,6 +261,10 @@ TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "add_price_alert": add_price_alert,
     "list_price_alerts": list_price_alerts,
     "remove_price_alert": remove_price_alert,
+    "get_fund_profile": get_fund_profile,
+    "search_fund_filings": search_fund_filings,
+    "compare_funds": compare_funds,
+    "compute_fund_overlap": compute_fund_overlap,
 }
 
 # Anthropic Messages API tool-use schemas. input_schema follows JSON Schema.
@@ -424,6 +488,78 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "ticker": {"type": "string"},
                 "limit": {"type": "integer", "description": "Max articles to return.", "default": 8},
             },
+            "required": ["ticker"],
+        },
+    },
+    {
+        "name": "get_fund_profile",
+        "description": (
+            "Profile an index fund or ETF (VOO, VXUS, QQQ): expense ratio, net assets, turnover, "
+            "category, top holdings, sector weights, asset classes. Use this instead of "
+            "compute_metrics or fetch_live_fundamentals, which cannot work on a fund — an ETF "
+            "files no 10-K and has no XBRL company facts. Every field is returned as "
+            "{value, source, as_of}; 'vendor' means a Yahoo Finance summary, not a primary "
+            "source. Fields that can only come from a prospectus (replication method, "
+            "distribution policy, securities lending) come back null pointing at "
+            "search_fund_filings, and tracking difference is permanently null because it needs "
+            "index returns no free source provides. Never fill a null in from memory."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"ticker": {"type": "string"}},
+            "required": ["ticker"],
+        },
+    },
+    {
+        "name": "search_fund_filings",
+        "description": (
+            "Search a fund's real SEC filings — summary prospectus (497K), statutory prospectus "
+            "(485BPOS), and annual report (N-CSR) — for cited passages. This is the citation "
+            "source for any qualitative claim about a fund: objective, benchmark, replication "
+            "method, distribution policy, securities lending, principal risks. Results carry the "
+            "form, filing date, and source URL. Important: these documents are filed by a trust "
+            "that registers many funds, so confirm a passage names the specific fund before "
+            "citing it — the response's scope_warning says so too."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string"},
+                "query": {"type": "string"},
+                "top_k": {"type": "integer", "default": 3},
+            },
+            "required": ["ticker", "query"],
+        },
+    },
+    {
+        "name": "compare_funds",
+        "description": (
+            "Compare funds with the same mandate (VOO vs IVV, VXUS vs IXUS) on expense ratio, "
+            "net assets, turnover, and top-10 concentration. Vendor-sourced for speed; confirm "
+            "the deciding figure against the prospectus with search_fund_filings. Tickers that "
+            "aren't supported funds are returned under 'unavailable' with a reason — report them "
+            "as missing rather than filling them in. When lowest_expense_ratio_tickers has more "
+            "than one entry the funds charge the same fee; say that instead of picking one."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"tickers": {"type": "array", "items": {"type": "string"}}},
+            "required": ["tickers"],
+        },
+    },
+    {
+        "name": "compute_fund_overlap",
+        "description": (
+            "Compute how much of a fund's portfolio the account already holds directly, by "
+            "intersecting account holdings with the fund's actual N-PORT holdings. Answers 'if I "
+            "add VOO, what do I really end up owning?'. Purely computed from the account fixture "
+            "and a filing — nothing estimated. Holdings are as of the N-PORT reporting period "
+            "end (a quarter-end, filed up to 60 days later), so always state that date and never "
+            "describe the result as current holdings."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"ticker": {"type": "string"}},
             "required": ["ticker"],
         },
     },

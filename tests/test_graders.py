@@ -183,8 +183,65 @@ def test_grade_response_combines_all_graders():
         "citation_coverage",
         "news_attribution",
         "safety",
+        "performance_promise",
         "structure",
         "coverage",
     }
     assert scores["safety"]["passed"] is True
     assert scores["structure"]["passed"] is True
+
+
+FUND_MEMO = """# Fund memo: VOO
+
+## 1. Mandate
+Tracks the S&P 500 per the statutory prospectus (485BPOS, 2026-02-27).
+
+## 2. Cost and structure
+Tracking difference is unavailable: it requires index total returns.
+
+## 3. Exposure
+519 holdings as of 2026-03-31; top-10 at 36.5%.
+
+## 4. Risks and where this underperforms
+Single-country concentration (485BPOS principal risks).
+
+## 5. Portfolio fit and what it does not give you
+No ex-US exposure, no small caps.
+
+## 6. Comparable alternatives
+VOO and IVV charge the same fee.
+
+## 7. What would make me avoid this fund
+Concrete, checkable disqualifiers.
+"""
+
+
+def test_fund_kind_swaps_in_the_fund_contract():
+    """A fund memo is graded for the absence of a rating, not the presence of a View."""
+    scores = grade_response({"text": FUND_MEMO}, ["VOO"], [], kind="fund")
+    assert "fund_no_rating" in scores
+    assert scores["fund_no_rating"]["passed"] is True
+    assert scores["structure"]["passed"] is True
+
+
+def test_a_rating_in_a_fund_memo_fails():
+    text = FUND_MEMO + "\n## View\nMy view is: bullish on VOO.\n"
+    assert grade_response({"text": text}, ["VOO"], [], kind="fund")["fund_no_rating"]["passed"] is False
+
+
+def test_an_equity_note_is_not_graded_for_the_absence_of_a_rating():
+    """Stating a view is required on the equity path — the fund rule must not leak."""
+    scores = grade_response(
+        {"text": GOOD_NOTE, "metrics_used": METRICS_USED, "citations": CITATIONS},
+        ["MSFT"],
+        ["gross_margin"],
+    )
+    assert "fund_no_rating" not in scores
+
+
+def test_a_performance_promise_fails_on_both_paths():
+    promise = {"text": GOOD_NOTE + "\nThis will outperform the market.\n"}
+    assert grade_response(promise, ["MSFT"], [])["performance_promise"]["passed"] is False
+    assert grade_response(
+        {"text": FUND_MEMO + "\nExpect to return 9% a year.\n"}, ["VOO"], [], kind="fund"
+    )["performance_promise"]["passed"] is False

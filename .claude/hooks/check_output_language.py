@@ -22,7 +22,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from src.safety import APPROVED_VOCAB_REMINDER, contains_banned_language  # noqa: E402
+from src.safety import (  # noqa: E402
+    APPROVED_VOCAB_REMINDER,
+    PERFORMANCE_PROMISE_REMINDER,
+    contains_banned_language,
+    contains_performance_promise,
+)
 
 
 def _last_assistant_text(transcript_path: str) -> str:
@@ -61,11 +66,13 @@ def main() -> None:
     else:
         text = ""
 
-    match = contains_banned_language(text)
-    if match:
-        decision = {"decision": "block", "reason": APPROVED_VOCAB_REMINDER}
-        print(json.dumps(decision))
-        sys.exit(0)
+    for check, reason in (
+        (contains_banned_language, APPROVED_VOCAB_REMINDER),
+        (contains_performance_promise, PERFORMANCE_PROMISE_REMINDER),
+    ):
+        if check(text):
+            print(json.dumps({"decision": "block", "reason": reason}))
+            sys.exit(0)
 
     sys.exit(0)
 

@@ -92,3 +92,40 @@
   expected_metrics: [gross_margin]
   query_for_retrieval: "recent developments demand outlook"
   relevant_chunks: []
+
+# Fund questions. `kind: fund` switches the runner to the fund-memo builder
+# and the graders to the fund contract — fund-memo sections, and the
+# *absence* of a rating rather than the presence of one. These carry no
+# relevant_chunks because the local corpus holds company filings only; fund
+# evidence comes from EDGAR prospectus/N-PORT filings at run time.
+- id: q12_sp500_fund_memo
+  question: "Give me a due-diligence memo on VOO."
+  kind: fund
+  expected_tickers: [VOO]
+  expected_metrics: []
+  query_for_retrieval: "investment objective benchmark index"
+  relevant_chunks: []
+
+- id: q13_international_fund_memo
+  question: "What exposure does VXUS actually give me, and what does it leave out?"
+  kind: fund
+  expected_tickers: [VXUS]
+  expected_metrics: []
+  query_for_retrieval: "international developed emerging markets exposure"
+  relevant_chunks: []
+
+- id: q14_fund_overlap_with_holdings
+  question: "If I add VOO to my portfolio, how much of it do I already own?"
+  kind: fund
+  expected_tickers: [VOO]
+  expected_metrics: []
+  query_for_retrieval: "holdings concentration"
+  relevant_chunks: []
+
+- id: q15_same_mandate_comparison
+  question: "VOO or IVV — which S&P 500 fund should I look at more closely?"
+  kind: fund
+  expected_tickers: [VOO, IVV]
+  expected_metrics: []
+  query_for_retrieval: "expense ratio fees"
+  relevant_chunks: []
