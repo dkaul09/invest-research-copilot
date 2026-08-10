@@ -36,8 +36,15 @@ THRESHOLDS = {
     "citation_coverage": 0.8,
     "news_attribution": 0.8,
     "safety": 1.0,
+    "performance_promise": 1.0,
     "structure": 1.0,
     "coverage": 0.5,
+}
+
+# Graders that only apply to one output contract, so they're averaged over
+# the questions that actually carry them rather than over the whole set.
+CONDITIONAL_THRESHOLDS = {
+    "fund_no_rating": 1.0,
 }
 
 
@@ -101,13 +108,67 @@ Reviewed tickers: {', '.join(item['expected_tickers'])}.
     return {"text": text, "metrics_used": metrics_used, "citations": citations}
 
 
+def build_fund_reference_memo(item: dict[str, Any]) -> dict[str, Any]:
+    """Assemble a fund memo the way the fund-research skill would.
+
+    Deliberately offline and mechanical, like ``build_reference_note``: the
+    point of the harness is to exercise the graders — fund-memo structure,
+    the absence of a rating, and the no-performance-promise rule — not to
+    re-fetch EDGAR on every eval run. Fund figures would come from
+    get_fund_profile and compute_fund_overlap in a real run; here they are
+    left explicitly unstated so no fabricated number enters the harness.
+    """
+    tickers = ", ".join(item["expected_tickers"])
+    text = f"""# Fund memo: {item['question']}
+
+## 1. Mandate
+Funds reviewed: {tickers}. Objective, benchmark, domicile, and quoted
+currency would be cited to the prospectus via search_fund_filings.
+
+## 2. Cost and structure
+Expense ratio, turnover, and net assets would come from get_fund_profile,
+each labelled vendor or filing. Tracking difference is unavailable: it
+requires the index's total return, which no free source provides, so it is
+not reported rather than estimated.
+
+## 3. Exposure
+Sector weights, country weights, and top-10 concentration would come from
+get_fund_profile and the fund's N-PORT holdings, each with its as-of date.
+
+## 4. Risks and where this underperforms
+Principal risks would be cited to the prospectus, not recalled.
+
+## 5. Portfolio fit and what it does not give you
+Overlap with current holdings would come from compute_fund_overlap, stated
+as of the N-PORT reporting date.
+
+## 6. Comparable alternatives
+Same-mandate funds would be compared with compare_funds, with equal fees
+reported as ties.
+
+## 7. What would make me avoid this fund
+Checkable disqualifiers tied to the evidence above. This reference memo is
+a mechanical stand-in for the eval harness, so it states no rating and no
+directional call — which is the fund contract, not an omission.
+"""
+    return {"text": text, "metrics_used": {}, "citations": []}
+
+
 def main() -> int:
     golden_set = load_golden_set()
 
     per_question_scores = []
     for item in golden_set:
-        response = build_reference_note(item)
-        scores = grade_response(response, item["expected_tickers"], item["expected_metrics"])
+        if item.get("kind") == "fund":
+            response = build_fund_reference_memo(item)
+        else:
+            response = build_reference_note(item)
+        scores = grade_response(
+            response,
+            item["expected_tickers"],
+            item["expected_metrics"],
+            kind=item.get("kind", "equity"),
+        )
         per_question_scores.append({"id": item["id"], "scores": scores})
 
     retrieval_scores = run_retrieval_eval(golden_set)
@@ -117,11 +178,21 @@ def main() -> int:
         values = [q["scores"][grader_name]["score"] for q in per_question_scores]
         mean_scores[grader_name] = round(sum(values) / len(values), 3) if values else 0.0
 
+    for grader_name in CONDITIONAL_THRESHOLDS:
+        values = [
+            q["scores"][grader_name]["score"]
+            for q in per_question_scores
+            if grader_name in q["scores"]
+        ]
+        if values:
+            mean_scores[grader_name] = round(sum(values) / len(values), 3)
+
     print("=" * 60)
     print("EVAL SCORECARD")
     print("=" * 60)
+    all_thresholds = {**THRESHOLDS, **CONDITIONAL_THRESHOLDS}
     for grader_name, mean in mean_scores.items():
-        threshold = THRESHOLDS[grader_name]
+        threshold = all_thresholds[grader_name]
         status = "PASS" if mean >= threshold else "FAIL"
         print(f"{grader_name:20s} mean={mean:.3f}  threshold={threshold:.2f}  [{status}]")
     print("-" * 60)
@@ -144,7 +215,7 @@ def main() -> int:
         )
     print(f"Results written to {result_path}")
 
-    failed = [name for name, mean in mean_scores.items() if mean < THRESHOLDS[name]]
+    failed = [name for name, mean in mean_scores.items() if mean < all_thresholds[name]]
     if failed:
         print(f"REGRESSION: below threshold on: {', '.join(failed)}")
         return 1

@@ -20,7 +20,33 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from src.safety import contains_banned_language
+from src.safety import contains_banned_language, contains_performance_promise
+
+# A fund memo is graded against a different structure than an equity note,
+# and against the *absence* of a rating rather than the presence of one —
+# see .claude/skills/fund-research/SKILL.md for why the two output
+# contracts differ.
+FUND_REQUIRED_SECTIONS = [
+    "Mandate",
+    "Cost",
+    "Exposure",
+    "Risks",
+    "does not",
+    "alternatives",
+    "avoid",
+]
+
+# Rating vocabulary that is correct in an equity note and wrong in a fund
+# memo. Matched as whole phrases so "the fund holds a neutral weighting in
+# energy" doesn't trip the check.
+_FUND_RATING_PATTERNS = [
+    # Covers "My view: bullish", "My view is bullish", and "My view is: bullish".
+    r"\b(?:my|our|the)\s+(?:view|rating)\b[\s:]*(?:is\b[\s:]*)?(?:bullish|bearish|neutral|overweight|underweight)\b",
+    r"\bi(?:'m| am)\s+(?:bullish|bearish)\s+on\b",
+    r"\brated?\s+(?:a\s+)?(?:hold|overweight|underweight)\b",
+    r"\bi\s+(?:would\s+)?recommend\s+(?:owning|adding|avoiding)\b",
+]
+_FUND_RATING_RE = re.compile("|".join(_FUND_RATING_PATTERNS), re.IGNORECASE)
 
 REQUIRED_SECTIONS = [
     "Snapshot",
@@ -177,15 +203,96 @@ def grade_coverage(response: dict[str, Any], expected_tickers: list[str], expect
     }
 
 
-def grade_response(
-    response: dict[str, Any], expected_tickers: list[str], expected_metrics: list[str]
-) -> dict[str, Any]:
-    """Run all graders and return a combined scorecard for one response."""
+def grade_fund_citation_coverage(response: dict[str, Any]) -> dict[str, Any]:
+    """Bullet claims in a fund memo carry a parenthetical source.
+
+    A fund memo has no single "Filing-backed observations" section — its
+    cited claims are spread across the mandate, cost, and risk sections —
+    so coverage is measured over every bullet in the memo rather than over
+    one section. Applying the equity grader here would score a
+    well-cited fund memo at zero purely for lacking an equity heading.
+    """
+    bullets = [
+        line
+        for line in response.get("text", "").splitlines()
+        if line.strip().startswith(("-", "*"))
+    ]
+    if not bullets:
+        return {"score": 1.0, "reason": "no bullet claims to check", "passed": True}
+
+    cited = sum(1 for b in bullets if "(" in b and ")" in b)
+    score = cited / len(bullets)
     return {
+        "score": round(score, 3),
+        "total_bullets": len(bullets),
+        "cited_bullets": cited,
+        "passed": score >= 0.8,
+    }
+
+
+def grade_performance_promise(response: dict[str, Any]) -> dict[str, Any]:
+    """The response never promises a return or predicts performance.
+
+    Banned on both paths. A view is groundable in evidence; a forecast of
+    what a price will do is not, on either an equity or a fund.
+    """
+    match = contains_performance_promise(response.get("text", ""))
+    return {
+        "score": 0.0 if match else 1.0,
+        "matched_phrase": match.group(0) if match else None,
+        "passed": match is None,
+    }
+
+
+def grade_fund_no_rating(response: dict[str, Any]) -> dict[str, Any]:
+    """A fund memo states no rating and no directional call.
+
+    This is the inverse of the equity contract, so it is checked only for
+    fund responses. The memo may — and should — say what would make the
+    fund unsuitable; it may not say whether to own it.
+    """
+    match = _FUND_RATING_RE.search(response.get("text", ""))
+    return {
+        "score": 0.0 if match else 1.0,
+        "matched_phrase": match.group(0) if match else None,
+        "passed": match is None,
+    }
+
+
+def grade_fund_structure(response: dict[str, Any]) -> dict[str, Any]:
+    """All required fund-memo sections are present."""
+    text_lower = response.get("text", "").lower()
+    missing = [s for s in FUND_REQUIRED_SECTIONS if s.lower() not in text_lower]
+    score = (len(FUND_REQUIRED_SECTIONS) - len(missing)) / len(FUND_REQUIRED_SECTIONS)
+    return {"score": round(score, 3), "missing_sections": missing, "passed": not missing}
+
+
+def grade_response(
+    response: dict[str, Any],
+    expected_tickers: list[str],
+    expected_metrics: list[str],
+    kind: str = "equity",
+) -> dict[str, Any]:
+    """Run all graders and return a combined scorecard for one response.
+
+    ``kind`` selects the output contract: an equity note must contain a
+    View, a fund memo must not.
+    """
+    scorecard = {
         "traceability": grade_traceability(response),
-        "citation_coverage": grade_citation_coverage(response),
+        "citation_coverage": (
+            grade_fund_citation_coverage(response)
+            if kind == "fund"
+            else grade_citation_coverage(response)
+        ),
         "news_attribution": grade_news_attribution(response),
         "safety": grade_safety(response),
-        "structure": grade_structure(response),
+        "performance_promise": grade_performance_promise(response),
         "coverage": grade_coverage(response, expected_tickers, expected_metrics),
     }
+    if kind == "fund":
+        scorecard["structure"] = grade_fund_structure(response)
+        scorecard["fund_no_rating"] = grade_fund_no_rating(response)
+    else:
+        scorecard["structure"] = grade_structure(response)
+    return scorecard

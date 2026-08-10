@@ -39,5 +39,36 @@ APPROVED_VOCAB_REMINDER = (
 )
 
 
+# A second, narrower category: promising a return. This is banned on both
+# the equity and the fund path, and is distinct from a rating. "Bullish on
+# MSFT" is a view the metrics can support; "MSFT will deliver 12% annual
+# returns" is a prediction nothing in this project can ground, and no
+# amount of filing evidence makes it checkable.
+#
+# These patterns are deliberately tight. A loose rule like "will return"
+# would fire on "the company will return capital to shareholders", which is
+# ordinary filing language about buybacks and dividends, not a forecast.
+PERFORMANCE_PROMISE_PATTERNS = [
+    r"\bwill (?:outperform|beat)\b",
+    r"\bwill (?:deliver|generate|produce|earn|return)\s+(?:[^.]{0,30}?)?\d+(?:\.\d+)?\s*%",
+    r"\bguarantee(?:s|d)?\s+(?:a\s+|the\s+)?(?:returns?|gains?|profits?|performance)\b",
+    r"\b(?:is|are)\s+(?:certain|sure|guaranteed)\s+to\s+(?:rise|gain|outperform|beat)\b",
+    r"\b(?:returns?|gains?|profits?)\s+(?:is|are)\s+guaranteed\b",
+    r"\bexpect(?:ed)?\s+(?:to\s+)?(?:return|gain|deliver)\s+\d+(?:\.\d+)?\s*%",
+]
+PERFORMANCE_PROMISE_RE = re.compile("|".join(PERFORMANCE_PROMISE_PATTERNS), re.IGNORECASE)
+
+PERFORMANCE_PROMISE_REMINDER = (
+    "Blocked: the response promises a return or predicts performance. Nothing in this "
+    "project can ground that — a filing supports a view, never a forecast of what a price "
+    "or a fund will do. Rewrite it as a view with its evidence and its risks, or state "
+    "plainly what would have to be true instead of asserting an outcome."
+)
+
+
 def contains_banned_language(text: str) -> re.Match | None:
     return BANNED_RE.search(text)
+
+
+def contains_performance_promise(text: str) -> re.Match | None:
+    return PERFORMANCE_PROMISE_RE.search(text)

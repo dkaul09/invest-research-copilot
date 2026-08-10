@@ -1,12 +1,17 @@
 """MCP server for the investment research copilot.
 
-Exposes eighteen tools. Fourteen are read-only (account/filing data never
+Exposes twenty-two tools. Eighteen are read-only (account/filing data never
 mutated); four (`add_to_watchlist`, `remove_from_watchlist`,
 `add_price_alert`, `remove_price_alert`) are the deliberate exceptions — a personal watchlist is a tracking list, not
 account or trade data, so it's fine for them to be genuinely writable, and
-neither can act on anything. Six tools reach public network APIs (SEC
+neither can act on anything. Ten tools reach public network APIs (SEC
 EDGAR, live quote data, or the news feed) and are
 annotated openWorldHint=True so a client can see they touch the network.
+
+The four fund tools (`get_fund_profile`, `search_fund_filings`,
+`compare_funds`, `compute_fund_overlap`) exist because an ETF is not a
+company: it files no 10-K and has no XBRL company facts, so the equity
+tools structurally cannot answer a question about VOO or VXUS.
 
 All real logic lives in ``src/tool_router.py``, shared with the FastAPI
 backend (``backend/app.py``) used by the web/Telegram frontends — this file
@@ -205,6 +210,66 @@ def fetch_recent_news(ticker: str, limit: int = 8) -> dict[str, Any]:
     prose tied to specific cited articles. Read-only.
     """
     return tool_router.fetch_recent_news(ticker, limit=limit)
+
+
+@mcp.tool(annotations=READ_ONLY_LIVE)
+def get_fund_profile(ticker: str) -> dict[str, Any]:
+    """Profile an index fund or ETF: expense ratio, net assets, holdings, sector mix.
+
+    Use this for a fund (VOO, VXUS, QQQ) instead of compute_metrics or
+    fetch_live_fundamentals, which structurally cannot work on one — a fund
+    files no 10-K and has no XBRL company facts. Every field comes back as
+    {value, source, as_of}: "vendor" is a Yahoo Finance summary, not a
+    primary source. Fields only a prospectus can state (replication method,
+    distribution policy, securities lending) return null pointing at
+    search_fund_filings; tracking difference is permanently null because it
+    requires index returns no free source provides. Never fill in a null
+    from memory. Read-only.
+    """
+    return tool_router.get_fund_profile(ticker)
+
+
+@mcp.tool(annotations=READ_ONLY_LIVE)
+def search_fund_filings(ticker: str, query: str, top_k: int = 3) -> dict[str, Any]:
+    """Search a fund's real SEC prospectus and annual report for cited passages.
+
+    The citation source for any qualitative claim about a fund — objective,
+    benchmark, replication, distribution policy, securities lending, risks.
+    Reads the summary prospectus (497K), statutory prospectus (485BPOS), and
+    annual report (N-CSR); each result carries the form, filing date, and
+    source URL. These are trust-level documents covering many sibling funds,
+    so confirm a passage names this specific fund before citing it.
+    Read-only: GET requests against SEC's public endpoints only.
+    """
+    return tool_router.search_fund_filings(ticker, query, top_k=top_k)
+
+
+@mcp.tool(annotations=READ_ONLY_LIVE)
+def compare_funds(tickers: list[str]) -> dict[str, Any]:
+    """Compare funds with the same mandate on cost, scale, turnover, and concentration.
+
+    Vendor-sourced for speed across several funds; confirm the deciding
+    figure against the prospectus with search_fund_filings. Tickers that
+    aren't supported funds come back under 'unavailable' with a reason —
+    report them as missing, never fill them in. If
+    lowest_expense_ratio_tickers holds more than one ticker, those funds
+    charge the same fee; say so rather than picking one. Read-only.
+    """
+    return tool_router.compare_funds(tickers)
+
+
+@mcp.tool(annotations=READ_ONLY_LIVE)
+def compute_fund_overlap(ticker: str) -> dict[str, Any]:
+    """Compute how much of a fund the account already owns, from its N-PORT holdings.
+
+    Answers "if I add this fund, what do I actually end up owning?" by
+    intersecting account holdings with the fund's real filed holdings. Purely
+    computed from the account fixture and a filing — nothing estimated.
+    Holdings are as of the N-PORT reporting period end (a quarter-end, filed
+    up to 60 days later): always state that date, and never describe the
+    result as the fund's current holdings. Read-only.
+    """
+    return tool_router.compute_fund_overlap(ticker)
 
 
 if __name__ == "__main__":

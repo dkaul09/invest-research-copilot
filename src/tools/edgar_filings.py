@@ -12,6 +12,7 @@ an actual, verifiable document.
 
 from __future__ import annotations
 
+import html
 import math
 import re
 from dataclasses import dataclass
@@ -27,12 +28,14 @@ _WINDOW_WORDS = 200
 _STRIDE_WORDS = 150  # overlap between windows so a fact near a boundary isn't split out of every chunk
 
 
-def _html_to_text(html: str) -> str:
+def _html_to_text(html_source: str) -> str:
     # Drop script/style blocks first so their content doesn't leak into text.
-    html = re.sub(r"(?is)<(script|style).*?</\1>", " ", html)
-    text = _TAG_RE.sub(" ", html)
-    text = re.sub(r"&nbsp;|&#160;", " ", text)
-    text = re.sub(r"&amp;", "&", text)
+    html_source = re.sub(r"(?is)<(script|style).*?</\1>", " ", html_source)
+    text = _TAG_RE.sub(" ", html_source)
+    # Decode the full entity set, not just a hand-picked few: filings are
+    # dense with &#8217; and &#8220;, and leaving them raw puts literal
+    # entity codes inside quoted citations.
+    text = html.unescape(text)
     return _WHITESPACE_RE.sub(" ", text).strip()
 
 

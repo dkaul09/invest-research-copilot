@@ -85,12 +85,12 @@ correctly the first time.
 
 ## Tool contract
 
-Eighteen MCP tools, served by `src/mcp_server.py` (see `.mcp.json`).
-Fourteen are read-only (`readOnlyHint: true`); `add_to_watchlist`,
+Twenty-two MCP tools, served by `src/mcp_server.py` (see `.mcp.json`).
+Eighteen are read-only (`readOnlyHint: true`); `add_to_watchlist`,
 `remove_from_watchlist`, `add_price_alert` and `remove_price_alert` are the
 deliberate exceptions — a personal
 watchlist is a tracking list, not account or trade data, so it's fine for
-it to be genuinely writable. Six tools reach public network APIs (SEC
+it to be genuinely writable. Ten tools reach public network APIs (SEC
 EDGAR, live quote data, or the news feed) and are annotated
 `openWorldHint: true`:
 
@@ -111,6 +111,10 @@ EDGAR, live quote data, or the news feed) and are annotated
 | `fetch_market_valuation` | P/E, market cap, EV/EBITDA from a live price + filing figures |
 | `fetch_recent_news` | recent press coverage — headline, publisher, URL, date; a citation source, never a number source |
 | `add_price_alert` / `list_price_alerts` / `remove_price_alert` | record price conditions to be notified about later — saved only, nothing checks prices yet |
+| `get_fund_profile` | an index fund/ETF's expense ratio, net assets, turnover, top holdings, sector mix — every field stamped with its source |
+| `search_fund_filings` | cited passages from a fund's real prospectus (497K, 485BPOS) and annual report (N-CSR) |
+| `compare_funds` | side-by-side cost/scale/concentration across funds with the same mandate |
+| `compute_fund_overlap` | how much of a fund the account already holds, from the fund's actual N-PORT holdings |
 
 The local filing corpus (`data/filings/`) covers **AAPL, MSFT, NKE** with
 hand-curated fundamentals. For any other ticker, use `fetch_live_fundamentals`
@@ -135,10 +139,20 @@ with its as-of time.
 
 ## Workflow
 
-For any research question, use the **equity-research** skill
-(`.claude/skills/equity-research/SKILL.md`). It is the only workflow this
-project needs — don't invent an alternative path or spin up subagents for a
-single linear research task.
+Two workflows, picked by what's being researched:
+
+- A **company** — use the **equity-research** skill
+  (`.claude/skills/equity-research/SKILL.md`).
+- An **index fund or ETF** (VOO, VXUS, QQQ) — use the **fund-research**
+  skill (`.claude/skills/fund-research/SKILL.md`).
+
+These are the only two workflows this project needs — don't invent an
+alternative path or spin up subagents for a single linear research task.
+
+The split isn't stylistic. An ETF files no 10-K and has no XBRL company
+facts, so `compute_metrics`, `fetch_live_fundamentals`, and
+`search_live_filings` structurally cannot answer a question about a fund;
+reaching for them on VOO means you're on the wrong path.
 
 ## Output format
 
@@ -146,6 +160,20 @@ Research notes follow this structure: Snapshot → Metrics table → Filing-back
 observations (with citations) → Risks → Open questions → What would change
 my mind → View (a stated rating/opinion with its rationale). See the skill
 file for the full spec and a worked example.
+
+**Fund memos are the one deliberate exception to the "state a view" rule.**
+A fund memo runs Mandate → Cost and structure → Exposure → Risks →
+Portfolio fit and what it does *not* give you → Comparable alternatives →
+What would make me avoid this fund. It states **no rating and no
+directional call**: what makes an index fund right for someone depends on a
+whole portfolio and a set of goals this project can't see, whereas the
+facts about the fund — cost, exposure, concentration, overlap — are exactly
+what it can establish. Saying what would make the fund unsuitable is
+in scope; saying whether to own it is not.
+
+Promising a return or predicting performance is banned on **both** paths
+and is blocked by the Stop hook. A view is groundable in evidence; a
+forecast is not.
 
 ## Data sources (MVP)
 
@@ -161,6 +189,27 @@ file for the full spec and a worked example.
   EDGAR's free, keyless public APIs (ticker→CIK lookup, XBRL company facts,
   the actual latest 10-K document), disk-cached under `data/edgar_cache/`
   (gitignored). Use for any ticker outside the local corpus.
+- Funds: **US-domiciled funds only.** `src/tools/fund_registry.py` resolves
+  a fund ticker through SEC's `company_tickers_mf.json` to the trust that
+  files for it, plus its series and class IDs. `fund_filings.py` searches
+  the trust's real prospectus and annual report; `fund_holdings.py` parses
+  the fund's full portfolio out of its N-PORT XML (holdings, weights, and
+  issuer country, all filing-sourced); `fund_profile.py` supplies the live
+  vendor layer; `fund_overlap.py` and `fund_compare.py` compute on top of
+  those. Three constraints worth knowing before writing a memo:
+  - **Every fund field carries `{value, source, as_of}`**, where `source`
+    is `filing`, `vendor` (a Yahoo summary, not a primary source), or
+    `computed`. Report the label, don't launder a vendor figure into a
+    fact. A prospectus outranks a vendor summary.
+  - **N-PORT lags.** Holdings are as of a quarter-end filed up to 60 days
+    later. State that date; never call them current holdings.
+  - **Prospectuses are trust-level**, covering many sibling funds. Confirm
+    a retrieved passage names the specific fund before citing it.
+  Non-US and UCITS funds have no EDGAR presence and are refused explicitly,
+  as are unit investment trusts like SPY. Watch for ticker collisions
+  across markets — VUSA resolves to a US fund in Tidal Trust III, not
+  Vanguard's LSE-listed UCITS. Tracking difference is permanently
+  unavailable: it needs index total returns that no free source provides.
 - News: `src/tools/news.py` reads Yahoo Finance's per-ticker news feed via
   `yfinance` (keyless, already a dependency). The feed mixes wire services
   with low-quality aggregators, which is exactly why every article carries
