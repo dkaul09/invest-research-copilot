@@ -85,12 +85,12 @@ correctly the first time.
 
 ## Tool contract
 
-Twenty-two MCP tools, served by `src/mcp_server.py` (see `.mcp.json`).
-Eighteen are read-only (`readOnlyHint: true`); `add_to_watchlist`,
+Twenty-three MCP tools, served by `src/mcp_server.py` (see `.mcp.json`).
+Nineteen are read-only (`readOnlyHint: true`); `add_to_watchlist`,
 `remove_from_watchlist`, `add_price_alert` and `remove_price_alert` are the
 deliberate exceptions — a personal
 watchlist is a tracking list, not account or trade data, so it's fine for
-it to be genuinely writable. Ten tools reach public network APIs (SEC
+it to be genuinely writable. Eleven tools reach public network APIs (SEC
 EDGAR, live quote data, or the news feed) and are annotated
 `openWorldHint: true`:
 
@@ -115,6 +115,7 @@ EDGAR, live quote data, or the news feed) and are annotated
 | `search_fund_filings` | cited passages from a fund's real prospectus (497K, 485BPOS) and annual report (N-CSR) |
 | `compare_funds` | side-by-side cost/scale/concentration across funds with the same mandate |
 | `compute_fund_overlap` | how much of a fund the account already holds, from the fund's actual N-PORT holdings |
+| `compute_true_exposure` | issuer-level exposure across the whole account, looking through every fund held to its N-PORT holdings — answers "am I actually diversified?" |
 
 The local filing corpus (`data/filings/`) covers **AAPL, MSFT, NKE** with
 hand-curated fundamentals. For any other ticker, use `fetch_live_fundamentals`
@@ -214,8 +215,12 @@ forecast is not.
   the trust's real prospectus and annual report; `fund_holdings.py` parses
   the fund's full portfolio out of its N-PORT XML (holdings, weights, and
   issuer country, all filing-sourced); `fund_profile.py` supplies the live
-  vendor layer; `fund_overlap.py` and `fund_compare.py` compute on top of
-  those. Three constraints worth knowing before writing a memo:
+  vendor layer; `fund_overlap.py`, `fund_compare.py` and
+  `true_exposure.py` compute on top of those. `true_exposure.py` is the
+  whole-account counterpart to `fund_overlap.py`: overlap asks what a
+  *candidate* fund duplicates, true exposure asks what the account already
+  owns once every held fund is unpacked to issuers. It is weight arithmetic
+  and must never be described as a risk or correlation model. Three constraints worth knowing before writing a memo:
   - **Every fund field carries `{value, source, as_of}`**, where `source`
     is `filing`, `vendor` (a Yahoo summary, not a primary source), or
     `computed`. Report the label, don't launder a vendor figure into a

@@ -26,6 +26,7 @@ from src.tools.fund_profile import get_fund_profile as _get_fund_profile
 from src.tools.fundamentals import get_fundamentals
 from src.tools.market_valuation import compute_market_valuation as _compute_market_valuation
 from src.tools.mock_portfolio import load_default_adapter
+from src.tools.true_exposure import compute_true_exposure as _compute_true_exposure
 from src.tools.news import fetch_recent_news as _fetch_recent_news
 from src.tools.peer_compare import compare_peers as _compare_peers
 from src.tools.quotes import get_price_history as _get_price_history
@@ -242,6 +243,28 @@ def compute_fund_overlap(ticker: str) -> dict[str, Any]:
     return result
 
 
+@traced("compute_true_exposure")
+def compute_true_exposure(top_n: int = 15) -> dict[str, Any]:
+    result = _compute_true_exposure(top_n)
+    store = get_default_store()
+    try:
+        store.record_tool_call(
+            "compute_true_exposure",
+            {"top_n": top_n},
+            {
+                "status": result.get("status"),
+                "issuer_count": result.get("issuer_count"),
+                "top_10_weight": result.get("top_10_weight"),
+                "funds_looked_through": [
+                    f["ticker"] for f in result.get("funds_looked_through", [])
+                ],
+            },
+        )
+    except RuntimeError:
+        pass
+    return result
+
+
 TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "get_portfolio_snapshot": get_portfolio_snapshot,
     "get_holding_detail": get_holding_detail,
@@ -265,6 +288,7 @@ TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "search_fund_filings": search_fund_filings,
     "compare_funds": compare_funds,
     "compute_fund_overlap": compute_fund_overlap,
+    "compute_true_exposure": compute_true_exposure,
 }
 
 # Anthropic Messages API tool-use schemas. input_schema follows JSON Schema.
@@ -561,6 +585,31 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {"ticker": {"type": "string"}},
             "required": ["ticker"],
+        },
+    },
+    {
+        "name": "compute_true_exposure",
+        "description": (
+            "Aggregate issuer-level exposure across the whole account, looking through every fund "
+            "held to its actual N-PORT holdings. Answers 'am I really diversified?' — a positions "
+            "list shows tickers, and two broad funds plus a direct position can be the same few "
+            "mega-cap issuers three times over. Returns each issuer's direct weight, its weight "
+            "contributed by each fund, and the total, plus a hidden_concentration list where "
+            "counting through funds materially raises an exposure. Purely computed from the "
+            "account snapshot and one filing per fund — nothing estimated, and it is weight "
+            "arithmetic, not a risk or correlation model. Each fund's holdings are as of its "
+            "N-PORT period end (a quarter-end filed up to 60 days later): state those dates and "
+            "never call the result current exposure."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "top_n": {
+                    "type": "integer",
+                    "description": "How many issuers to return, ranked by total weight. Default 15.",
+                }
+            },
+            "required": [],
         },
     },
 ]

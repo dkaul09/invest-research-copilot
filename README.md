@@ -6,7 +6,7 @@ than digging through filings myself for the same handful of numbers every
 time. So I built an agentic RAG copilot that retrieves the financial detail on
 demand and writes it up as a cited research note.
 
-It runs on a local MCP server exposing eighteen tools, fourteen of them
+It runs on a local MCP server exposing twenty-three tools, nineteen of them
 read-only. A metrics engine computes every ratio in pure Python rather than
 letting the model guess at one; BM25 retrieval over SEC filing excerpts keeps
 every qualitative claim traceable to a cited passage; and a live SEC EDGAR
@@ -131,9 +131,20 @@ brokerage account and without spending API credits on the first run.
 
 **Sample portfolio.** `data/portfolio/mock_account.json` is a mock account —
 holdings, cost basis, cash and a watchlist. It is deliberately unbalanced
-(an oversized MSFT position, a losing NKE position) so concentration and
-unrealized-loss questions have something to bite on. This is sample data, not
-a real account.
+(an oversized MSFT position, a losing NKE position, and two overlapping index
+funds) so concentration, unrealized-loss and look-through questions have
+something to bite on. This is sample data, not a real account.
+
+**Look-through exposure.** `compute_true_exposure` answers the question a
+positions list structurally can't: *am I actually diversified?* It multiplies
+each held fund's weight in the account by every issuer's weight in that fund's
+real N-PORT filing, adds directly held weight, and reports issuer-level
+totals. On the sample account — six stocks plus VOO and QQQ — Nvidia,
+Alphabet, Amazon, Broadcom, Meta and Tesla all show up as real exposures
+despite appearing nowhere in the holdings list, and Apple's true weight is
+roughly a fifth higher than its direct position. It's weight arithmetic over
+filings, not a risk model, and each fund's holdings carry the quarter-end
+they were filed as of.
 
 **Sample track record.** A fresh clone has no research history, so the track
 record page starts empty. To populate it:

@@ -93,6 +93,15 @@ would matter most to that decision.
    a fund, or asks what it adds. This is the analysis they can't easily get
    elsewhere; lead with it when it's material.
 
+   **Pick the right one of the two overlap tools.** `compute_fund_overlap`
+   is for a fund being *considered* — "if I add VOO, how much of it do I
+   already own?". `compute_true_exposure` is for the account as it *already
+   is* — "counting through the funds I hold, what am I actually exposed
+   to?". A question about whether the account is diversified, or where its
+   real concentration sits, wants `compute_true_exposure`; a question about
+   a candidate fund wants `compute_fund_overlap`. Both are filing-sourced
+   and both carry per-fund as-of dates that must be stated.
+
 5. **Find the alternatives.** Call `compare_funds` with the fund and its
    obvious same-mandate peers (S&P 500: VOO, IVV, SPLG; total international:
    VXUS, IXUS; Nasdaq-100: QQQ, QQQM). Report ties as ties.

@@ -272,5 +272,22 @@ def compute_fund_overlap(ticker: str) -> dict[str, Any]:
     return tool_router.compute_fund_overlap(ticker)
 
 
+@mcp.tool(annotations=READ_ONLY_LIVE)
+def compute_true_exposure(top_n: int = 15) -> dict[str, Any]:
+    """Aggregate issuer-level exposure across the account, looking through held funds.
+
+    Answers "am I actually diversified?" — a positions list shows tickers,
+    but two broad funds plus a direct position can be the same handful of
+    mega-cap issuers counted three times. Multiplies each held fund's account
+    weight by each issuer's weight in that fund's real N-PORT holdings and
+    adds directly held weight. Purely computed from the account fixture and
+    one filing per fund — nothing estimated, and it is weight arithmetic, not
+    a risk or correlation model. Each fund's holdings are as of its N-PORT
+    period end (a quarter-end filed up to 60 days later): state those dates
+    and never describe the result as current exposure. Read-only.
+    """
+    return tool_router.compute_true_exposure(top_n)
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(grep -n \"renderPortfolio\\\\|/api/portfolio\\\\|function fmt\\\\|const \\\\$\\\\|async function load\" web/app.js)",
-      "Bash(timeout 300 python3 -m pytest -q)"
+      "Bash(timeout 300 python3 -m pytest -q)",
+      "Bash(.venv/bin/python -c ' *)",
+      "Bash(.venv/bin/python -m pytest -q)",
+      "Bash(.venv/bin/python -m pytest tests/test_true_exposure.py -q)",
+      "Edit(/.claude/skills/equity-research/**)",
+      "Edit(/.claude/skills/fund-research/**)"
     ],
     "deny": [
       "Bash(*robin_stocks*)",

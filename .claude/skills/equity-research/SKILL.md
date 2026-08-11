@@ -78,6 +78,17 @@ call in this workflow.
    portfolio concentration, use the `weights`/`hhi`/`top_position_weight` fields
    already present in `get_portfolio_snapshot`.
 
+   **If the account holds any fund, ticker-level concentration understates
+   the truth — call `compute_true_exposure`.** A snapshot's HHI treats VOO as
+   one position, so an account with two broad funds and a direct mega-cap
+   position can look diversified while the same handful of issuers sits
+   behind all three. `compute_true_exposure` multiplies each fund's account
+   weight through its real N-PORT holdings and reports issuer-level totals.
+   Two rules when reporting it: state each fund's holdings as-of date (they
+   differ per fund and lag by up to 60 days), and never describe the result
+   as a risk measure — it is weight arithmetic and says nothing about how
+   those exposures move together.
+
 4. **Retrieve filing evidence.** For each notable metric or risk you plan to
    discuss (e.g. "why did gross margin expand"), call `search_filings`
    (local corpus tickers) or `search_live_filings` (any other ticker) with a

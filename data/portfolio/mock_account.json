@@ -45,6 +45,22 @@
       "cost_basis_per_share": 22.10,
       "current_price": 41.60,
       "sector": "Technology"
+    },
+    {
+      "ticker": "VOO",
+      "shares": 30,
+      "cost_basis_per_share": 421.75,
+      "current_price": 512.30,
+      "sector": "Index fund",
+      "note": "Broad S&P 500 fund — overlaps the direct tech positions on look-through"
+    },
+    {
+      "ticker": "QQQ",
+      "shares": 18,
+      "cost_basis_per_share": 398.20,
+      "current_price": 486.90,
+      "sector": "Index fund",
+      "note": "Deliberately duplicates VOO's mega-cap exposure for look-through analysis"
     }
   ]
 }
