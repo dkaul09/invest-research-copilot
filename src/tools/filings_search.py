@@ -23,6 +23,9 @@ from typing import Any
 
 import yaml
 
+from src.tools.embeddings import backend_id, embed
+from src.tools.hybrid_search import CANDIDATE_DEPTH, dense_ranking, fuse
+
 DEFAULT_FILINGS_DIR = Path(__file__).resolve().parents[2] / "data" / "filings"
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -45,7 +48,12 @@ class Chunk:
 
     def __post_init__(self) -> None:
         if not self.tokens:
-            self.tokens = _tokenize(self.text)
+            # Index the section heading alongside the body. A heading like
+            # "Risk Factors: Supply Chain Concentration" often carries the
+            # exact terms a reader searches for while the prose underneath
+            # says "suppliers" and "manufacturers" instead — leaving it out
+            # threw away the most on-topic signal in the chunk.
+            self.tokens = _tokenize(f"{self.section} {self.text}")
 
 
 def _parse_document(path: Path) -> list[Chunk]:
@@ -100,6 +108,19 @@ class FilingsIndex:
             for term in set(c.tokens):
                 self._df[term] = self._df.get(term, 0) + 1
         self._n_docs = len(self.chunks)
+        self._doc_vectors = None  # embedded lazily on first search
+
+    def _vectors(self):
+        """Embed the corpus once, on demand.
+
+        Done lazily so importing this module (which the MCP server does at
+        startup) never pays for loading an embedding model, and so a
+        BM25-only deployment costs nothing at all.
+        """
+        if self._doc_vectors is None:
+            # Embed heading + body, matching what BM25 indexes.
+            self._doc_vectors = embed([f"{c.section}\n{c.text}" for c in self.chunks])
+        return self._doc_vectors
 
     def _idf(self, term: str) -> float:
         df = self._df.get(term, 0)
@@ -131,31 +152,55 @@ class FilingsIndex:
         if not query_tokens:
             return []
 
-        candidates = self.chunks
-        if ticker:
-            candidates = [c for c in candidates if c.ticker == ticker.upper()]
+        # Work in corpus indices throughout so the two rankers can be fused.
+        candidate_ids = [
+            i
+            for i, c in enumerate(self.chunks)
+            if not ticker or c.ticker == ticker.upper()
+        ]
 
-        scored = []
-        for chunk in candidates:
+        lexical = []
+        for i in candidate_ids:
+            chunk = self.chunks[i]
             score = self._score(query_tokens, chunk, len(chunk.tokens))
             if score > 0:
-                scored.append((score, chunk))
+                lexical.append((score, i))
+        lexical.sort(key=lambda pair: (-pair[0], pair[1]))
+        bm25_ranking = [i for _, i in lexical]
+        bm25_scores = {i: s for s, i in lexical}
 
-        scored.sort(key=lambda pair: pair[0], reverse=True)
+        doc_vectors = self._vectors()
+        if doc_vectors is None:
+            # No embedding backend — behave exactly as pure BM25.
+            chosen = [(i, bm25_scores[i], {"bm25_rank": r, "dense_rank": None})
+                      for r, i in enumerate(bm25_ranking[:top_k], start=1)]
+        else:
+            query_vector = embed([query])
+            allowed = set(candidate_ids)
+            dense_full = dense_ranking(
+                query_vector[0], doc_vectors, depth=len(self.chunks)
+            )
+            dense_rank = [i for i in dense_full if i in allowed][:CANDIDATE_DEPTH]
+            chosen = fuse(bm25_ranking[:CANDIDATE_DEPTH], dense_rank, top_k)
 
-        return [
-            {
-                "score": round(score, 4),
-                "ticker": chunk.ticker,
-                "company": chunk.company,
-                "form": chunk.form,
-                "fiscal_year": chunk.fiscal_year,
-                "section": chunk.section,
-                "text": chunk.text,
-                "source_url": chunk.source_url,
-            }
-            for score, chunk in scored[:top_k]
-        ]
+        results = []
+        for doc_index, score, provenance in chosen:
+            chunk = self.chunks[doc_index]
+            results.append(
+                {
+                    "score": round(float(score), 4),
+                    "bm25_score": round(bm25_scores.get(doc_index, 0.0), 4),
+                    "retrieval": {**provenance, "backend": backend_id()},
+                    "ticker": chunk.ticker,
+                    "company": chunk.company,
+                    "form": chunk.form,
+                    "fiscal_year": chunk.fiscal_year,
+                    "section": chunk.section,
+                    "text": chunk.text,
+                    "source_url": chunk.source_url,
+                }
+            )
+        return results
 
 
 _default_index: FilingsIndex | None = None

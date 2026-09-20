@@ -201,9 +201,30 @@ forecast is not.
   is a security decision. The one provider-side guarantee is that the
   default account reports `agentic_allowed: false`.
 - Filings: `data/filings/*.md` — real excerpted 10-K sections with YAML
-  front matter (ticker, fiscal year, source URL, fundamentals), chunked and
-  searched via deterministic BM25 (`src/tools/filings_search.py`). Covers
-  AAPL, MSFT, NKE only.
+  front matter (ticker, fiscal year, source URL, fundamentals), chunked by
+  section and searched via **hybrid retrieval** (`src/tools/filings_search.py`).
+  Covers AAPL, MSFT, NKE only.
+- Retrieval is **BM25 + dense embeddings fused with Reciprocal Rank
+  Fusion** (`src/tools/embeddings.py`, `src/tools/hybrid_search.py`), on
+  all three corpora — local filings, live 10-Ks, fund prospectuses. BM25
+  alone had a real failure mode: AAPL's "Risk Factors: Supply Chain
+  Concentration" section never writes *supply*, *chain*, or *concentration*
+  in its body (it says "suppliers", "contract manufacturers"), so a lexical
+  query for it scored that chunk 0.0 and ranked a margin discussion first.
+  Three things to know before touching this:
+  - **Embeddings are optional and degrade honestly.** With no backend
+    installed, or `IRC_EMBEDDINGS=off`, search falls back to pure BM25 and
+    every hit reports `retrieval.backend: "none"`. It never fakes a vector.
+  - **The default backend is local** (`model2vec`, static embeddings on
+    numpy — no torch, no API key, no network at query time). If
+    `VOYAGE_API_KEY` is set, the finance-tuned `voyage-finance-2` is used
+    instead. Vectors are cached to `data/embedding_cache/` keyed by content
+    hash *plus backend id*, so switching models can't read stale vectors.
+  - **Fusion is rank-based, not score-based**, so there is no weight to
+    retune per corpus, and retrieval stays deterministic — which is what
+    keeps `evals/retrieval_eval.py` meaningful. Every hit carries
+    `retrieval.bm25_rank` / `retrieval.dense_rank` so you can see which
+    ranker found it.
 - Live filings/fundamentals: `src/tools/edgar_client.py`,
   `edgar_fundamentals.py`, `edgar_filings.py` fetch real data from SEC
   EDGAR's free, keyless public APIs (ticker→CIK lookup, XBRL company facts,
