@@ -7,3 +7,10 @@ uvicorn[standard]>=0.32.0
 python-dotenv>=1.0.0
 python-telegram-bot>=21.0
 yfinance>=0.2.40
+
+# Dense retrieval. model2vec runs static embeddings on numpy alone — no
+# torch, no onnxruntime, no API key — so hybrid search works out of the box.
+# If it can't be installed, retrieval degrades to pure BM25 rather than
+# failing (see src/tools/embeddings.py).
+model2vec>=0.9.0
+numpy>=1.26

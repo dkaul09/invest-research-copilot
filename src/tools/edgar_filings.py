@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.tools.edgar_client import EdgarLookupError, fetch_text, get_cik_for_ticker, get_latest_10k_filing
+from src.tools.embeddings import backend_id, embed
+from src.tools.hybrid_search import CANDIDATE_DEPTH, dense_ranking, fuse
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -98,11 +100,20 @@ def fetch_live_filing_chunks(ticker: str, force_refresh: bool = False) -> tuple[
 
 
 class _BM25:
+    """Hybrid BM25 + dense retrieval over live-fetched filing windows.
+
+    Named for its lexical half for continuity, but it fuses two rankings.
+    This path matters more than the local corpus: blind 200-word windows
+    have no section headings to lean on, and this is what answers every
+    ticker outside AAPL/MSFT/NKE.
+    """
+
     K1 = 1.5
     B = 0.75
 
     def __init__(self, chunks: list[LiveChunk]) -> None:
         self.chunks = chunks
+        self._doc_vectors = None
         self._doc_lengths = [len(c.tokens) for c in chunks]
         self._avg_doc_length = sum(self._doc_lengths) / len(self._doc_lengths) if self._doc_lengths else 0.0
         self._df: dict[str, int] = {}
@@ -115,13 +126,18 @@ class _BM25:
         df = self._df.get(term, 0)
         return max(0.0, math.log((self._n_docs - df + 0.5) / (df + 0.5) + 1))
 
+    def _vectors(self):
+        if self._doc_vectors is None:
+            self._doc_vectors = embed([c.text for c in self.chunks])
+        return self._doc_vectors
+
     def search(self, query: str, top_k: int) -> list[dict[str, Any]]:
         query_tokens = _tokenize(query)
         if not query_tokens:
             return []
 
-        scored = []
-        for chunk in self.chunks:
+        lexical = []
+        for i, chunk in enumerate(self.chunks):
             term_counts: dict[str, int] = {}
             for t in chunk.tokens:
                 term_counts[t] = term_counts.get(t, 0) + 1
@@ -135,19 +151,36 @@ class _BM25:
                 denom = tf + self.K1 * (1 - self.B + self.B * doc_length / (self._avg_doc_length or 1))
                 score += idf * (tf * (self.K1 + 1)) / denom
             if score > 0:
-                scored.append((score, chunk))
+                lexical.append((score, i))
 
-        scored.sort(key=lambda pair: pair[0], reverse=True)
-        return [
-            {
-                "score": round(score, 4),
-                "ticker": chunk.ticker,
-                "source_url": chunk.source_url,
-                "filing_date": chunk.filing_date,
-                "text": chunk.text,
-            }
-            for score, chunk in scored[:top_k]
-        ]
+        lexical.sort(key=lambda pair: (-pair[0], pair[1]))
+        bm25_ranking = [i for _, i in lexical]
+        bm25_scores = {i: s for s, i in lexical}
+
+        doc_vectors = self._vectors()
+        if doc_vectors is None:
+            chosen = [(i, bm25_scores[i], {"bm25_rank": r, "dense_rank": None})
+                      for r, i in enumerate(bm25_ranking[:top_k], start=1)]
+        else:
+            query_vector = embed([query])
+            dense_rank = dense_ranking(query_vector[0], doc_vectors, depth=CANDIDATE_DEPTH)
+            chosen = fuse(bm25_ranking[:CANDIDATE_DEPTH], dense_rank, top_k)
+
+        results = []
+        for doc_index, score, provenance in chosen:
+            chunk = self.chunks[doc_index]
+            results.append(
+                {
+                    "score": round(float(score), 4),
+                    "bm25_score": round(bm25_scores.get(doc_index, 0.0), 4),
+                    "retrieval": {**provenance, "backend": backend_id()},
+                    "ticker": chunk.ticker,
+                    "source_url": chunk.source_url,
+                    "filing_date": chunk.filing_date,
+                    "text": chunk.text,
+                }
+            )
+        return results
 
 
 def search_live_filing(ticker: str, query: str, top_k: int = 3) -> dict[str, Any]:

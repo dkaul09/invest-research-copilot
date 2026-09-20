@@ -289,8 +289,9 @@ never needs a model at all. This project draws the line deliberately:
 
 - **Deterministic** — all arithmetic. `metrics_engine.py` computes every
   ratio in pure Python and returns `None` rather than a guess when an input
-  is missing. `filings_search.py`'s BM25 ranking is a fixed algorithm, not a
-  model call: the same query always returns the same ordering. The eval
+  is missing. `filings_search.py`'s ranking is a fixed algorithm, not a
+  model call: the same query against the same corpus and backend always
+  ranks the same way. The eval
   graders (`evals/graders.py`) are also deterministic — no LLM-as-judge in
   the MVP.
 - **Agentic** — planning and judgment. Deciding which tickers a vague
@@ -299,9 +300,15 @@ never needs a model at all. This project draws the line deliberately:
   metrics table and citations into a coherent note, and the self-critique
   pass that checks the note before it's shown — all of this is genuine
   agent behavior encoded in the `equity-research` skill, not scripted.
-- **Retrieval** — `data/filings/*.md` is chunked by section and ranked with
-  BM25; every result carries `(ticker, section, source_url)` so a claim in a
-  note can always be traced to a specific filing passage.
+- **Retrieval** — `data/filings/*.md` is chunked by section and ranked by
+  **BM25 and dense embeddings fused with Reciprocal Rank Fusion**; every
+  result carries `(ticker, section, source_url)` so a claim in a note can
+  always be traced to a specific filing passage. Lexical matching alone
+  missed passages that describe a risk without naming it — a section about
+  "suppliers" and "contract manufacturers" scored 0.0 for "supply chain
+  concentration" — so both rankers run and their results are unioned.
+  Embeddings are optional: with no backend the system degrades to pure
+  BM25 and says so on every hit.
 - **Guardrail logic** — safety is structural, not just prompted, and it's
   scoped to what actually needs enforcing: this tool may state an opinion
   (bullish/neutral/bearish, buy/hold/sell), but it can never *act* on one.
@@ -338,7 +345,9 @@ header per SEC's usage policy. For any ticker:
 3. **Filing text** via the company's actual latest 10-K document
    (fetched from `sec.gov/Archives/edgar/...`), stripped of HTML and
    chunked into overlapping ~200-word windows, then ranked with the same
-   deterministic BM25 algorithm as the local corpus.
+   hybrid BM25 + embedding retrieval as the local corpus. This path has no
+   section headings to lean on, so the dense half carries more weight here
+   than it does over the curated corpus.
 
 Everything is disk-cached to `data/edgar_cache/` (gitignored) so repeat
 questions about the same ticker don't re-hit the network.

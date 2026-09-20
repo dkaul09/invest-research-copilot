@@ -24,6 +24,10 @@ evals/results/*.json
 # Cached responses from live SEC EDGAR fetches (network artifacts, not source)
 data/edgar_cache/
 
+# Cached embedding vectors. Derived from the filings, reproducible from
+# them, and keyed by backend — a local artifact, not source.
+data/embedding_cache/
+
 # Python
 __pycache__/
 *.py[cod]
