@@ -30,6 +30,32 @@ call in this workflow.
 - Never state a qualitative claim about *why* something happened, or the
   basis for a view, without a citation from `search_filings` (ticker +
   section + source_url).
+
+- **A figure quoted out of filing text is not a computed figure, and must
+  not be presented as one.** `search_filings` / `search_live_filings` return
+  prose, and that prose is full of numbers — provisions, delinquency ratios,
+  receivable balances. Quoting one is allowed and often the only way to
+  answer a question, but it is a *filing-quoted* number: attribute it to the
+  filing in the same breath ("the filing reports a $1,997M provision for
+  FY2025"), never restate it bare as though `compute_metrics` produced it,
+  and never put it in the metrics table, which is reserved for computed
+  ratios. If you find yourself doing arithmetic on two quoted figures, say
+  that you did and show both inputs.
+
+- **Normalize before claiming a trend.** A balance-sheet absolute that grew
+  while its base grew has not necessarily moved. An allowance rising from
+  $2,705M to $2,865M is not evidence of expected losses rising if the
+  receivables behind it grew too — the allowance *ratio* is the measure that
+  answers that, and the filing usually reports it directly. Before writing
+  that something increased, deteriorated, or improved, check whether the
+  filing gives a ratio for it, and quote that instead. This is the single
+  easiest way to state something false out of entirely real numbers.
+
+- **Never narrate a correction mid-answer.** If you notice partway through
+  that a figure belongs to a different segment or period, fix it before the
+  note is written. A visible "wait, that's actually credit cards" leaves the
+  reader unable to tell which half of the sentence to trust, and a research
+  note is a finished artifact, not a transcript of working it out.
 - **A filing outranks a headline.** `fetch_recent_news` is a citation source,
   not a number source. News can raise a risk, add timeliness, or open a
   question — it can never be the sole basis for a View, never contradict a
@@ -118,8 +144,9 @@ call in this workflow.
 5. **Write the research note**, in this fixed format:
    - **Snapshot** — holdings/weights/cost-basis context relevant to the question
    - **Metrics table** — the `compute_metrics`/`compare_peers` output, one row
-     per ticker. Columns are the metric and its value(s) only: no "Source"
-     column. Which tool produced a number belongs in the surrounding prose
+     per ticker. Columns are the metric and its value(s) only: **no "Source"
+     column, and no figures quoted out of filing prose** — this table is
+     computed ratios only. Which tool produced a number belongs in the surrounding prose
      (or in the note's own remarks) — as a column it repeats itself on every
      row and squeezes the actual figures into a sliver.
    - **Charts (optional)** — include one only when a shape carries something a
@@ -163,7 +190,11 @@ call in this workflow.
    received this turn, (b) every qualitative claim and every stated view has
    a citation or metric it traces back to, (c) nothing claims a trade was
    actually placed, executed, or filled, (d) no number in the note came out of
-   a news story rather than a tool, and no stated View rests on press coverage
+   a news story rather than a tool, (e) every figure quoted from filing prose
+   is attributed to the filing rather than presented as a computed ratio, and
+   none of them sit in the metrics table, (f) every trend claim rests on a
+   ratio or a like-for-like comparison rather than on an absolute whose base
+   also moved, (g) the note contains no visible mid-answer self-correction, and no stated View rests on press coverage
    alone rather than on metrics and filings. Fix anything that fails before
    presenting the note. This is a check you perform yourself — it is also
    independently enforced by the Stop hook, but don't rely on the hook as

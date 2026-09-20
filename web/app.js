@@ -58,8 +58,85 @@ const RATINGS = [
   "se" + "ll",
 ].join("|");
 
-// Citations look like (NKE 10-K FY2024, "Risk Factors: China Market Exposure").
-const CITATION_RE = /\((?:[A-Z]{1,6}[ ,]\s*)?(?:10-K|10-Q|8-K|20-F|DEF 14A)[^()]*\)/g;
+// Two kinds of citation, deliberately distinguished everywhere they appear.
+//
+// A filing citation rests on a company's own audited disclosure; a press
+// citation rests on a journalist's reporting. The project's rule is that a
+// filing outranks a headline, so the reader has to be able to tell them
+// apart at a glance rather than having to read every parenthesis.
+//
+// Filing: (NKE 10-K FY2024, "Risk Factors: China Market Exposure")
+//         (OMF 10-K filed 2026-02-06, https://www.sec.gov/...)
+const CITATION_RE = /\((?:[A-Z]{1,6}[ ,]\s*)?(?:10-K|10-Q|8-K|20-F|N-CSR|N-PORT|497K|485BPOS|DEF 14A)[^()]*\)/g;
+
+// Press: (Reuters, 2026-08-01, https://…) — publisher, ISO date, URL.
+const PRESS_CITE_RE = /\(([^()]{2,80}?),\s*(\d{4}-\d{2}-\d{2}),\s*(https?:\/\/[^\s)]+)\)/g;
+
+const FORM_WORDS = /10-K|10-Q|8-K|20-F|N-CSR|N-PORT|497K|485BPOS|DEF 14A/;
+
+// Pull every citation out of a note so they can be listed in one place.
+// Filings come first because they outrank press; each list is deduped by URL
+// (or by its full text when it carries no link, as local-corpus cites don't).
+function collectSources(text) {
+  const filings = new Map();
+  const press = new Map();
+
+  (text.match(CITATION_RE) || []).forEach((raw) => {
+    const url = (raw.match(/https?:\/\/[^\s)]+/) || [""])[0];
+    const label = raw.replace(/^\(|\)$/g, "").replace(/,?\s*https?:\/\/\S+/, "").trim();
+    const key = url || label;
+    if (!filings.has(key)) filings.set(key, { label, url });
+  });
+
+  let m;
+  PRESS_CITE_RE.lastIndex = 0;
+  while ((m = PRESS_CITE_RE.exec(text)) !== null) {
+    // A filing cite that happens to carry a date must not be double-counted.
+    if (FORM_WORDS.test(m[0])) continue;
+    const [, publisher, date, url] = m;
+    if (!press.has(url)) press.set(url, { label: `${publisher.trim()}, ${date}`, url });
+  }
+
+  return { filings: [...filings.values()], press: [...press.values()] };
+}
+
+function sourcesBlock(text) {
+  const { filings, press } = collectSources(text);
+  if (!filings.length && !press.length) return null;
+
+  const row = (c, cls) =>
+    `<li class="src ${cls}">` +
+    (c.url
+      ? `<a href="${c.url}" target="_blank" rel="noopener">${c.label}</a>` +
+        `<span class="src-host">${hostOf(c.url)}</span>`
+      : `<span>${c.label}</span>`) +
+    `</li>`;
+
+  const group = (title, items, cls) =>
+    items.length
+      ? `<div class="src-group"><h4 class="src-title">${title}` +
+        `<span class="src-count">${items.length}</span></h4>` +
+        `<ul class="src-list">${items.map((c) => row(c, cls)).join("")}</ul></div>`
+      : "";
+
+  const el = document.createElement("section");
+  el.className = "note-sec note-sources";
+  el.innerHTML =
+    `<h3 class="sec-label">sources</h3>` +
+    `<div class="sec-body">` +
+    group("Filings", filings, "is-filing") +
+    group("Press", press, "is-press") +
+    `</div>`;
+  return el;
+}
+
+function hostOf(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
 
 function inlineFormat(line) {
   const links = [];
@@ -78,7 +155,13 @@ function inlineFormat(line) {
   out = out
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/`(.+?)`/g, "<code>$1</code>")
-    .replace(CITATION_RE, (m) => `<span class="cite">${m}</span>`);
+    .replace(CITATION_RE, (m) => `<span class="cite is-filing">${m}</span>`);
+
+  // Press citations get their own tint so a headline is never mistaken for
+  // a filing fact at a glance.
+  out = out.replace(PRESS_CITE_RE, (m) =>
+    FORM_WORDS.test(m) ? m : `<span class="cite is-press">${m}</span>`
+  );
 
   return out.replace(/\u0000(\d+)\u0000/g, (_, i) => links[Number(i)]);
 }
@@ -437,6 +520,12 @@ function buildNote(text, blocked, runNumber, when) {
     if (kind === "view") stampVerdicts(el);
     note.appendChild(el);
   });
+
+  const sources = sourcesBlock(text);
+  if (sources) {
+    sources.style.setProperty("--i", 99);
+    note.appendChild(sources);
+  }
 
   attachChartInteractions(note);
   return note;

@@ -37,6 +37,20 @@ opinion, but it can never act on one. See Hard Boundaries below.
   — ticker, section heading, and source URL. No citation, no claim. A view
   or rating must be traceable to the metrics/citations gathered this turn,
   not asserted from nowhere.
+- **A figure quoted out of filing prose is a third provenance class, and
+  must be labelled as one.** The retrieval tools return text, and filing
+  text is dense with numbers. Quoting one is allowed — often it is the only
+  way to answer the question — but attribute it to the filing as you state
+  it ("the filing reports a $1,997M provision"), keep it out of the metrics
+  table, and never let it read as though a computation produced it. The
+  three classes are: computed (the four metric tools), market-derived
+  (`fetch_market_valuation`), and filing-quoted (retrieval). Blurring them
+  is how a real number becomes a false claim.
+- **Normalize before asserting a trend.** An absolute that grew alongside
+  its base has not necessarily moved. Check for the ratio the filing
+  already reports before writing that something rose, worsened, or
+  improved — stating something false out of entirely accurate numbers is
+  the most likely remaining failure mode in this project.
 - **A headline is press coverage, and must be reported as one — a filing
   outranks it.** `fetch_recent_news` is a citation source, not a number
   source: cite an article by publisher, date, and URL, and never state a

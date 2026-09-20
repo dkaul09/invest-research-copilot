@@ -103,7 +103,7 @@ def fetch_live_fundamentals(ticker: str) -> dict[str, Any]:
 
 
 @traced("search_live_filings")
-def search_live_filings(ticker: str, query: str, top_k: int = 3) -> dict[str, Any]:
+def search_live_filings(ticker: str, query: str, top_k: int = 6) -> dict[str, Any]:
     try:
         result = _search_live_filing(ticker, query, top_k=top_k)
     except EdgarLookupError as exc:
@@ -203,7 +203,7 @@ def get_fund_profile(ticker: str) -> dict[str, Any]:
 
 
 @traced("search_fund_filings")
-def search_fund_filings(ticker: str, query: str, top_k: int = 3) -> dict[str, Any]:
+def search_fund_filings(ticker: str, query: str, top_k: int = 6) -> dict[str, Any]:
     result = _search_fund_filings(ticker, query, top_k=top_k)
     if result.get("status") != "ok":
         return result
@@ -374,14 +374,17 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "name": "search_live_filings",
         "description": (
             "Search the actual text of a company's latest 10-K, fetched live from SEC EDGAR. Use "
-            "for any ticker NOT in the local corpus. Every result carries the real filing URL."
+            "for any ticker NOT in the local corpus. Every result carries the real filing URL. "
+            "A real 10-K is chunked into blind ~200-word windows with no section headings, so a "
+            "relevant disclosure is often split across neighbouring windows — the default depth "
+            "is higher here than for the curated local corpus for that reason."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "ticker": {"type": "string"},
                 "query": {"type": "string"},
-                "top_k": {"type": "integer", "default": 3},
+                "top_k": {"type": "integer", "default": 6},
             },
             "required": ["ticker", "query"],
         },
@@ -550,7 +553,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "properties": {
                 "ticker": {"type": "string"},
                 "query": {"type": "string"},
-                "top_k": {"type": "integer", "default": 3},
+                "top_k": {"type": "integer", "default": 6},
             },
             "required": ["ticker", "query"],
         },

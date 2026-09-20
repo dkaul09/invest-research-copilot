@@ -594,10 +594,83 @@ body {
   font-family: var(--font-mono);
   font-size: 0.78em;
   letter-spacing: 0.02em;
-  color: var(--stamp);
-  background: var(--stamp-soft);
   padding: 1px 5px;
   border-radius: var(--radius);
+}
+
+/* A filing carries the stamp colour — it is the company's own audited word.
+   Press is tinted separately and deliberately quieter: it can raise a risk
+   or add timeliness, but it never outranks a filing, and the reader should
+   be able to see which is which without reading the parenthesis. */
+.cite.is-filing {
+  color: var(--stamp);
+  background: var(--stamp-soft);
+}
+
+.cite.is-press {
+  color: var(--ink-2);
+  background: transparent;
+  border-bottom: 1px dotted var(--rule);
+}
+
+/* Sources footer — every citation in the note, gathered in one place, so
+   provenance can be audited without scanning the prose for parentheses. */
+.note-sources .sec-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 32px;
+}
+
+.src-group { min-width: 220px; flex: 1 1 260px; }
+
+.src-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 7px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.src-count {
+  font-size: 0.62rem;
+  padding: 0 5px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-3);
+}
+
+.src-list { list-style: none; margin: 0; padding: 0; }
+
+.src {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 0 5px 10px;
+  border-left: 2px solid var(--rule-2);
+  margin-bottom: 4px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.src.is-filing { border-left-color: var(--stamp); }
+
+.src a { color: var(--ink); text-decoration: none; }
+.src a:hover { text-decoration: underline; }
+
+.src-host {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--ink-3);
+}
+
+@media (max-width: 560px) {
+  .note-sources .sec-body { gap: 14px; }
+  .src-group { flex-basis: 100%; }
 }
 
 /* Metrics table: the ledger band, doing what it does on paper. */
